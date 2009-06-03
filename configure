@@ -1,0 +1,51 @@
+#!/usr/bin/env ruby
+#
+# Copyright 2009, Curtis Spencer.
+#
+# This configure script is based on Lloyd Hilaiel's configure script in yajl
+# Copyright 2007-2009, Lloyd Hilaiel.
+# 
+require 'fileutils'
+
+prefix = "/usr/local"
+options = {}
+
+puts "== removing old build files"
+FileUtils.rm_rf("build")
+FileUtils.rm_f("Makefile")
+puts "== running CMake in build directory"
+FileUtils.mkdir("build")
+FileUtils.cd("build") do 
+  if (!system("cmake .."))
+    puts "The \"cmake\" program is required to configure pillowtalk.  It's"
+    puts "available from most ports/packaging systems and http://cmake.org"
+    exit 1
+  end
+end
+
+# now generate a Makefile
+puts "== Generating Makefile"
+File.open("Makefile", "w+") do |f| 
+  f.puts ".PHONY: all clean distclean install test distro"
+  f.puts "all: distro"
+  f.puts
+  f.puts "distro:"
+  f.puts "	@cd build && make"
+  f.puts
+  f.puts "doc:"
+  f.puts "	@cd build && make doc"
+  f.puts
+  f.puts "test:"
+  f.puts "	@cd build && make test"
+  f.puts
+  f.puts "clean:"  
+  f.puts "	@cd build && make clean"
+  f.puts
+  f.puts "distclean:"  
+  f.puts "	@rm -rf Makefile build"
+  f.puts
+  f.puts "install: all" 
+  f.puts "	@cd build && make install"
+  f.puts
+end
+puts "== Configuration complete"

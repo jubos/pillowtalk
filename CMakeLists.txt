@@ -1,0 +1,34 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
+#SET(CMAKE_VERBOSE_MAKEFILE on)
+PROJECT( pillowtalk )
+
+SET(CMAKE_C_FLAGS "-Wall -g")
+#FIND_PACKAGE(CURL REQUIRED)
+#FIND_PACKAGE(CURL REQUIRED)
+
+#SET(CMAKE_LIBRARY_PATH "/usr/local/lib:/usr/lib")
+MESSAGE(STATUS "CMAKE Lib: " ${CMAKE_LIBRARY_PATH})
+# Here we look for curl
+FIND_PATH(CURL_INCLUDE_DIR curl.h /usr/local/include/curl /usr/include/curl )
+FIND_LIBRARY(CURL_LIBRARY NAMES curl /usr/local/lib /usr/lib )
+
+IF (CURL_INCLUDE_DIR AND CURL_LIBRARY)
+  SET(CURL_FOUND TRUE)
+ELSE (CURL_INCLUDE_DIR AND CURL_LIBRARY)
+  MESSAGE(FATAL_ERROR "Could not find CURL")
+ENDIF (CURL_INCLUDE_DIR AND CURL_LIBRARY)
+
+# Here we look for yajl
+FIND_PATH(YAJL_INCLUDE_DIR yajl_parse.h /usr/local/include/yajl /usr/include/yajl )
+FIND_LIBRARY(YAJL_LIBRARY NAMES yajl )
+
+IF (YAJL_INCLUDE_DIR AND YAJL_LIBRARY)
+  SET(YAJL_FOUND TRUE)
+ELSE (YAJL_INCLUDE_DIR AND YAJL_LIBRARY)
+  MESSAGE(FATAL_ERROR "Could not find YAJL")
+ENDIF (YAJL_INCLUDE_DIR AND YAJL_LIBRARY)
+
+add_subdirectory(src)
+add_subdirectory(test)
+
+enable_testing()
