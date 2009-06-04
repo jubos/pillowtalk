@@ -96,6 +96,8 @@ pt_response_t* pillowtalk_put(const char* server_target, pt_node_t* doc)
       data_len = strlen(data);
   }
   pt_response_t* res = http_operation("PUT",server_target,data,data_len);
+  if (data)
+    free(data);
   return res;
 }
 
