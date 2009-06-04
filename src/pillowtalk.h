@@ -27,6 +27,7 @@ typedef struct {
 void pillowtalk_init();
 void pillowtalk_cleanup();
 
+void pillowtalk_free_node(pt_node_t* node);
 void pillowtalk_free_response(pt_response_t* res);
 
 /***** HTTP Related Functions ******/
@@ -36,7 +37,8 @@ pt_response_t* pillowtalk_delete(const char* server_target);
 pt_response_t* pillowtalk_put(const char* server_target, const char* data, unsigned int data_len);
 
 /* 
- * Do an HTTP get request on the target and parse the resulting JSON into the pt_response object
+ * Do an HTTP get request on the target and parse the resulting JSON into the
+ * pt_response object
  */
 pt_response_t* pillowtalk_get(const char* server_target);
 
@@ -57,6 +59,30 @@ int pillowtalk_boolean_get(pt_node_t* boolean);
 int pillowtalk_integer_get(pt_node_t* integer);
 double pillowtalk_double_get(pt_node_t* dbl);
 const char* pillowtalk_string_get(pt_node_t* string);
+
+/* 
+ * The following functions are used to change a pt_node_t to do update
+ * operations or get new json strings 
+ */
+
+void pillowtalk_map_set(pt_node_t* map, const char* key, pt_node_t* value);
+void pillowtalk_map_unset(pt_node_t* map, const char* key);
+
+pt_node_t* pillowtalk_null_new();
+pt_node_t* pillowtalk_bool_new(int boolean);
+pt_node_t* pillowtalk_integer_new(int integer);
+pt_node_t* pillowtalk_double_new(double dbl);
+pt_node_t* pillowtalk_string_new(const char* str);
+pt_node_t* pillowtalk_map_new();
+pt_node_t* pillowtalk_array_new();
+
+void pillowtalk_array_push_back(pt_node_t* array, pt_node_t* elem);
+void pillowtalk_array_push_front(pt_node_t* array, pt_node_t* elem);
+
+/*
+ * This will remove elem and free it as well, so don't use elem after this
+ */
+void pillowtalk_array_remove(pt_node_t* array, pt_node_t* elem);
 
 
 #ifdef	__cplusplus

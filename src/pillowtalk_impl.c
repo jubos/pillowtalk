@@ -9,6 +9,8 @@
 #include <yajl/yajl_parse.h>
 #include <assert.h>
 
+#include "bsd_queue.h"
+
 /* Structs */
 struct memory_chunk {
   char *memory;
@@ -32,8 +34,7 @@ static int json_end_map(void* response);
 static int json_start_array(void* response);
 static int json_end_array(void* response);
 static void free_map_node(pt_map_t* map);
-static void free_node(pt_node_t* node);
-static void add_value_node_to_context(pt_response_impl_t* context, pt_node_t* value);
+static void add_node_to_context_container(pt_response_impl_t* context, pt_node_t* value);
 static void parse_json(struct memory_chunk* chunk,pt_response_t*);
 
 /* Globals */
@@ -69,7 +70,7 @@ void pillowtalk_free_response(pt_response_t* response)
 {
   if (response) {
     if (response->root) {
-      free_node(response->root);
+      pillowtalk_free_node(response->root);
     }
     free(response);
   }
@@ -122,12 +123,66 @@ pt_node_t* pillowtalk_array_get(pt_node_t* array, unsigned int idx)
 {
   if (array->type == PT_ARRAY) {
     pt_array_t* real_array = (pt_array_t*) array;
+    int index = 0;
+    pt_array_elem_t* cur = NULL;
+    TAILQ_FOREACH(cur,&real_array->head, entries) {
+      if (index == idx) {
+        return cur->node;
+      }
+    }
+  }
+  return NULL;
+  /*
+  if (array->type == PT_ARRAY) {
+    pt_array_t* real_array = (pt_array_t*) array;
     if (idx < real_array->len)
       return real_array->array[idx];
     else
       return NULL;
   } else {
     return 0;
+  }
+  */
+}
+
+/* Pass in the pointer to the elem and remove it if it exists */
+void pillowtalk_array_remove(pt_node_t* array, pt_node_t* node)
+{
+  if (array->type == PT_ARRAY) {
+    pt_array_t* real_array = (pt_array_t*) array;
+    pt_array_elem_t* cur = NULL;
+    pt_array_elem_t* tmp = NULL;
+    TAILQ_FOREACH_SAFE(cur,&real_array->head, entries, tmp) {
+      if (cur->node == node) {
+        TAILQ_REMOVE(&real_array->head,cur,entries);
+        pillowtalk_free_node(cur->node);
+        free(cur);
+        real_array->len--;
+        break;
+      }
+    }
+  }
+}
+
+void pillowtalk_array_push_front(pt_node_t* array, pt_node_t* node)
+{
+  if (array->type == PT_ARRAY) {
+    pt_array_t* real_array = (pt_array_t*) array;
+    pt_array_elem_t* elem = (pt_array_elem_t*) malloc(sizeof(pt_array_elem_t));
+    elem->node = node;
+    real_array->len++;
+    TAILQ_INSERT_HEAD(&real_array->head,elem,entries);
+  }
+}
+
+void pillowtalk_array_push_back(pt_node_t* array, pt_node_t* node)
+{
+  if (array->type == PT_ARRAY) {
+    pt_array_t* real_array = (pt_array_t*) array;
+    pt_array_elem_t* elem = (pt_array_elem_t*) malloc(sizeof(pt_array_elem_t));
+    elem->node = node;
+    real_array->len++;
+    TAILQ_INSERT_TAIL(&real_array->head,elem,entries);
   }
 }
 
@@ -175,6 +230,92 @@ const char* pillowtalk_string_get(pt_node_t* string)
   } else {
     return NULL;
   }
+}
+
+/* Build a new pt_map_t* and initialize it */
+pt_node_t* pillowtalk_map_new()
+{
+  pt_node_t* new_node = (pt_node_t*) calloc(1,sizeof(pt_map_t));
+  new_node->type = PT_MAP;
+  return new_node;
+}
+
+pt_node_t* pillowtalk_null_new()
+{
+  pt_node_t* new_node = (pt_node_t*) calloc(1,sizeof(pt_null_value_t));
+  new_node->type = PT_NULL;
+  return new_node;
+}
+
+pt_node_t* pillowtalk_bool_new(int boolean)
+{
+  pt_bool_value_t* new_node = (pt_bool_value_t*) calloc(1,sizeof(pt_bool_value_t));
+  new_node->parent.type = PT_BOOLEAN;
+  new_node->value = boolean;
+  return (pt_node_t*) new_node;
+}
+
+pt_node_t* pillowtalk_integer_new(int integer)
+{
+  pt_int_value_t* new_node = (pt_int_value_t*) calloc(1,sizeof(pt_int_value_t));
+  new_node->parent.type = PT_INTEGER;
+  new_node->value = integer;
+  return (pt_node_t*) new_node;
+}
+
+pt_node_t* pillowtalk_double_new(double dbl)
+{
+  pt_double_value_t* new_node = (pt_double_value_t*) calloc(1,sizeof(pt_double_value_t));
+  new_node->parent.type = PT_DOUBLE;
+  new_node->value = dbl;
+  return (pt_node_t*) new_node;
+}
+
+void pillowtalk_map_set(pt_node_t* map, const char* key, pt_node_t* value)
+{
+  pt_map_t* real_map = (pt_map_t*) map;
+  pt_key_value_t* new_node = (pt_key_value_t*) calloc(1,sizeof(pt_key_value_t));
+  char* new_key = strdup(key);
+  new_node->parent.type = PT_KEY_VALUE;
+  new_node->key = new_key;
+  new_node->value = value;
+  HASH_ADD_KEYPTR(hh,real_map->key_values,new_node->key,strlen(new_node->key),new_node);
+}
+
+void pillowtalk_map_unset(pt_node_t* map, const char* key)
+{
+  pt_map_t* real_map = (pt_map_t*) map;
+  pt_key_value_t* search_result = NULL;
+  HASH_FIND(hh,real_map->key_values,key,strlen(key),search_result);
+  if (search_result) {
+    HASH_DEL(real_map->key_values,search_result);
+    pillowtalk_free_node(search_result->value);
+    free(search_result->key);
+    free(search_result);
+  }
+}
+
+pt_node_t* pillowtalk_string_new(const char* str)
+{
+  pt_str_value_t* new_node = (pt_str_value_t*) calloc(1,sizeof(pt_str_value_t));
+  new_node->parent.type = PT_STRING;
+  new_node->value = strdup(str);
+  return (pt_node_t*) new_node;
+}
+
+pt_node_t* pillowtalk_array_new()
+{
+  pt_node_t* new_node = (pt_node_t*) calloc(1,sizeof(pt_array_t));
+  new_node->type = PT_ARRAY;
+  TAILQ_INIT(&((pt_array_t*) new_node)->head);
+  return new_node;
+}
+
+pt_node_t* pillowtalk_array_push(pt_node_t* ary, pt_node_t* node)
+{
+  pt_node_t* new_node = (pt_node_t*) calloc(1,sizeof(pt_array_t));
+  new_node->type = PT_ARRAY;
+  return new_node;
 }
 
 /* Static Implementation */
@@ -305,7 +446,7 @@ static int json_null(void* response)
   printf("JSON NULL\n");
   pt_node_t* node = (pt_node_t*) malloc(sizeof(pt_node_t));
   node->type = PT_NULL;
-  add_value_node_to_context((pt_response_impl_t*) response,node);
+  add_node_to_context_container((pt_response_impl_t*) response,node);
   return 1;
 }
 
@@ -315,7 +456,7 @@ static int json_boolean(void* response,int boolean)
   pt_bool_value_t * node = (pt_bool_value_t*) calloc(1,sizeof(pt_bool_value_t));
   node->parent.type = PT_BOOLEAN;
   node->value = boolean;
-  add_value_node_to_context((pt_response_impl_t*) response,(pt_node_t*)node);
+  add_node_to_context_container((pt_response_impl_t*) response,(pt_node_t*)node);
   return 1;
 }
 
@@ -343,7 +484,7 @@ static int json_integer(void* response,long integer)
   node->parent.type = PT_INTEGER;
   node->value = integer;
 
-  add_value_node_to_context(response,(pt_node_t*) node);
+  add_node_to_context_container(response,(pt_node_t*) node);
   return 1;
 }
 
@@ -354,7 +495,7 @@ static int json_double(void* response,double dbl)
   node->parent.type = PT_DOUBLE;
   node->value = dbl;
 
-  add_value_node_to_context(response,(pt_node_t*) node);
+  add_node_to_context_container(response,(pt_node_t*) node);
   return 1;
 }
 
@@ -367,7 +508,7 @@ static int json_string(void* response, const unsigned char* str, unsigned int le
   node->parent.type = PT_STRING;
   node->value = new_str;
 
-  add_value_node_to_context(response,(pt_node_t*) node);
+  add_node_to_context_container(response,(pt_node_t*) node);
   printf("String: %s\n",new_str);
   return 1;
 }
@@ -381,33 +522,7 @@ static int json_start_map(void* response)
   printf("Start Map\n");
   pt_node_t* new_node = (pt_node_t*) calloc(1,sizeof(pt_map_t));
   new_node->type = PT_MAP;
-
-  if (res->current_node) {
-    switch(res->current_node->type) {
-      case PT_MAP:
-        break;
-      case PT_ARRAY:
-        {
-          pt_array_t* resolved = (pt_array_t*) res->current_node;
-          resolved->array = (pt_node_t**)realloc(resolved->array,(resolved->len + 1) * sizeof(pt_node_t*));
-          resolved->array[resolved->len] = new_node;
-          resolved->len++;
-        }
-        break;
-      case PT_KEY_VALUE:
-        {
-          pt_key_value_t* pair = (pt_key_value_t*) res->current_node;
-          pair->value = new_node;
-        }
-        break;
-      default:
-        break;
-    }
-  } else {
-    printf("Setting Root\n");
-    ((pt_response_t*)res)->root = new_node;
-    res->current_node = new_node;
-  }
+  add_node_to_context_container(res,new_node);
   pt_container_ctx_t* new_ctx = (pt_container_ctx_t*) calloc(1,sizeof(pt_container_ctx_t));
   new_ctx->container = new_node;
   LL_PREPEND(res->stack,new_ctx);
@@ -429,33 +544,12 @@ static int json_start_array(void* response)
 {
   printf("Start Array\n");
   pt_response_impl_t* res = (pt_response_impl_t*) response;
-  pt_node_t* new_node = (pt_node_t*) calloc(1,sizeof(pt_array_t));
-  new_node->type = PT_ARRAY;
-  if (res->current_node) {
-    switch(res->current_node->type) {
-      case PT_MAP:
-        break;
-      case PT_ARRAY:
-        {
-          pt_array_t* resolved = (pt_array_t*) res->current_node;
-          resolved->array = (pt_node_t**)realloc(resolved->array,++resolved->len);
-          resolved->array[resolved->len] = new_node;
-        }
-        break;
-      case PT_KEY_VALUE:
-        {
-          pt_key_value_t* pair = (pt_key_value_t*) res->current_node;
-          pair->value = new_node;
-        }
-        break;
-      default:
-        break;
-    }
-  } else {
-    res->current_node = new_node;
-  }
+  pt_array_t* new_node = (pt_array_t*) calloc(1,sizeof(pt_array_t));
+  TAILQ_INIT(&new_node->head);
+  new_node->parent.type = PT_ARRAY;
+  add_node_to_context_container(res,(pt_node_t*) new_node);
   pt_container_ctx_t* new_ctx = (pt_container_ctx_t*) calloc(1,sizeof(pt_container_ctx_t));
-  new_ctx->container = new_node;
+  new_ctx->container = (pt_node_t*) new_node;
   LL_PREPEND(res->stack,new_ctx);
   res->current_node = (pt_node_t*) new_node;
   return 1;
@@ -478,18 +572,26 @@ static int json_end_array(void* response)
  * If it is an array it appends the value to the array.
  * If it is a key value pair it adds it to the value field of that pair.
  */
-static void add_value_node_to_context(pt_response_impl_t* res, pt_node_t* value)
+static void add_node_to_context_container(pt_response_impl_t* res, pt_node_t* new_node)
 {
-  if (res->current_node->type == PT_ARRAY) {
-    pt_array_t* resolved = (pt_array_t*) res->current_node;
-    resolved->array = (pt_node_t**)realloc(resolved->array,((resolved->len + 1) * sizeof(pt_node_t*)));
-    resolved->array[resolved->len] = value;
-    resolved->len++;
-    printf("Adding Value to Array\n");
-  } else if (res->current_node->type == PT_KEY_VALUE) {
-    pt_key_value_t* resolved = (pt_key_value_t*) res->current_node;
-    printf("Adding Key Value to %s\n", resolved->key);
-    resolved->value = value;
+  if (res->current_node) {
+    if (res->current_node->type == PT_ARRAY) {
+      pt_array_t* resolved = (pt_array_t*) res->current_node;
+      //resolved->array = (pt_node_t**)realloc(resolved->array,((resolved->len + 1) * sizeof(pt_node_t*)));
+      //resolved->array[resolved->len] = new_node;
+      pt_array_elem_t* elem = (pt_array_elem_t*) malloc(sizeof(pt_array_elem_t));
+      elem->node = new_node;
+      TAILQ_INSERT_TAIL(&resolved->head,elem,entries);
+      resolved->len++;
+      printf("Adding Value to Array\n");
+    } else if (res->current_node->type == PT_KEY_VALUE) {
+      pt_key_value_t* resolved = (pt_key_value_t*) res->current_node;
+      printf("Adding Key Value to %s\n", resolved->key);
+      resolved->value = new_node;
+    }
+  } else {
+    ((pt_response_t*)res)->root = new_node;
+    res->current_node = new_node;
   }
 }
 
@@ -511,7 +613,7 @@ static void free_map_node(pt_map_t* map)
   while(map->key_values) {
     cur = map->key_values;
     HASH_DEL(map->key_values, cur);
-    free_node(cur->value);
+    pillowtalk_free_node(cur->value);
     free(cur->key);
     free(cur);
   }
@@ -519,15 +621,17 @@ static void free_map_node(pt_map_t* map)
 
 static void free_array_node(pt_array_t* array)
 {
-  unsigned int i;
-  for(i=0; i < array->len; i++) {
-    free_node(array->array[i]);
+  while (!TAILQ_EMPTY(&array->head)) {
+    pt_array_elem_t* elem;
+    elem = TAILQ_FIRST(&array->head);
+    TAILQ_REMOVE(&array->head, elem, entries);
+    pillowtalk_free_node(elem->node);
+    free(elem);
   }
-  free(array->array);
 }
 
 /* Recursive Free Function.  Watch the fireworks! */
-static void free_node(pt_node_t* node)
+void pillowtalk_free_node(pt_node_t* node)
 {
   switch(node->type) {
     case PT_MAP:

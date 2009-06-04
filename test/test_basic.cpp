@@ -72,4 +72,84 @@ BOOST_AUTO_TEST_CASE( test_array )
   pillowtalk_free_response(res);
 }
 
+// Here we make a new set of json and make sure we get what we expect
+BOOST_AUTO_TEST_CASE( test_mutable_json )
+{
+  pt_node_t* map = pillowtalk_map_new();
+  BOOST_REQUIRE(map);
+  BOOST_REQUIRE(map->type == PT_MAP);
+
+  pt_node_t* null = pillowtalk_null_new();
+  BOOST_REQUIRE(null);
+  BOOST_REQUIRE(null->type == PT_NULL);
+
+  pt_node_t* boolean = pillowtalk_bool_new(1);
+  BOOST_REQUIRE(boolean);
+  BOOST_REQUIRE(boolean->type == PT_BOOLEAN);
+
+  pt_node_t* integer = pillowtalk_integer_new(100);
+  BOOST_REQUIRE(integer);
+  BOOST_REQUIRE(integer->type == PT_INTEGER);
+
+  pt_node_t* dbl = pillowtalk_double_new(9.99);
+  BOOST_REQUIRE(dbl);
+  BOOST_REQUIRE(dbl->type == PT_DOUBLE);
+
+  pt_node_t* world = pillowtalk_string_new("string");
+  BOOST_REQUIRE(world);
+  BOOST_REQUIRE(world->type == PT_STRING);
+
+  pt_node_t* ary = pillowtalk_array_new();
+  BOOST_REQUIRE(ary);
+  BOOST_REQUIRE(ary->type == PT_ARRAY);
+
+  pt_node_t* int1 = pillowtalk_integer_new(1);
+  pt_node_t* int2 = pillowtalk_integer_new(2);
+  pt_node_t* int3 = pillowtalk_integer_new(3);
+  pillowtalk_array_push_back(ary,int1);
+  pillowtalk_array_push_back(ary,int2);
+  pillowtalk_array_push_back(ary,int3);
+
+  BOOST_REQUIRE_EQUAL(pillowtalk_array_len(ary),3);
+
+  pillowtalk_array_remove(ary,int2);
+
+  BOOST_REQUIRE_EQUAL(pillowtalk_array_len(ary),2);
+
+
+  // Now set these things into the map
+  
+  pillowtalk_map_set(map,"null",null);
+  pillowtalk_map_set(map,"boolean",boolean);
+  pillowtalk_map_set(map,"integer",integer);
+  pillowtalk_map_set(map,"double",dbl);
+  pillowtalk_map_set(map,"string",world);
+  pillowtalk_map_set(map,"array",ary);
+
+  pt_node_t* value = pillowtalk_map_get(map,"null");
+  BOOST_REQUIRE(value->type == PT_NULL);
+
+  value = pillowtalk_map_get(map,"boolean");
+  BOOST_REQUIRE(pillowtalk_boolean_get(value) == 1);
+
+  value = pillowtalk_map_get(map,"integer");
+  BOOST_REQUIRE(pillowtalk_integer_get(value) == 100);
+
+  value = pillowtalk_map_get(map,"double");
+  BOOST_REQUIRE(pillowtalk_double_get(value) == 9.99);
+
+  value = pillowtalk_map_get(map,"string");
+  BOOST_REQUIRE(value);
+  BOOST_REQUIRE_EQUAL("string",pillowtalk_string_get(value));
+
+  value = pillowtalk_map_get(map,"array");
+  BOOST_REQUIRE(value);
+
+
+  pillowtalk_map_unset(map,"string");
+  BOOST_REQUIRE(!pillowtalk_map_get(map,"string"));
+
+  pillowtalk_free_node(map);
+}
+
 //BOOST_AUTO_TEST_SUITE_END()

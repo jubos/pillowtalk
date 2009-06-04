@@ -1,6 +1,7 @@
 #include "pillowtalk.h"
 #include "uthash.h"
 #include "utlist.h"
+#include "bsd_queue.h"
 
 /* Here we have subclasses of pt_node */
 
@@ -19,9 +20,17 @@ typedef struct {
   pt_key_value_t* key_values;
 } pt_map_t;
 
+typedef struct pt_array_elem_t {
+  pt_node_t* node;
+  //struct pt_array_elem_t* next, *prev;
+  TAILQ_ENTRY(pt_array_elem_t) entries;
+} pt_array_elem_t;
+
 typedef struct {
   pt_node_t parent;
-  pt_node_t** array;
+  //pt_array_elem_t* head;
+  TAILQ_HEAD(,pt_array_elem_t) head;
+  //pt_node_t** array;
   unsigned int len;
 } pt_array_t;
 
