@@ -17,6 +17,7 @@ struct memory_chunk {
 };
 
 /* Prototypes */
+static pt_response_t* http_operation(const char* method,const char* server_target, const char* data, unsigned data_len);
 static void *myrealloc(void *ptr, size_t size);
 static size_t recv_memory_callback(void *ptr, size_t size, size_t nmemb, void *data);
 static size_t send_memory_callback(void *ptr, size_t size, size_t nmemb, void *data);
@@ -66,154 +67,29 @@ void pillowtalk_cleanup()
 
 void pillowtalk_free_response(pt_response_t* response)
 {
-  if (response->root) {
-    free_node(response->root);
+  if (response) {
+    if (response->root) {
+      free_node(response->root);
+    }
+    free(response);
   }
-  free(response);
 }
 
 pt_response_t* pillowtalk_delete(const char* server_target)
 {
-  CURL *curl_handle;
-  struct memory_chunk chunk;
-  chunk.memory=NULL; /* we expect realloc(NULL, size) to work */
-  chunk.size = 0;    /* no data at this point */
-
-  /* init the curl session */
-  curl_handle = curl_easy_init();
-
-  /* specify URL to get */
-  curl_easy_setopt(curl_handle, CURLOPT_URL, server_target);
-
-  printf("DELETE: %s\n",server_target);
-
-  curl_easy_setopt(curl_handle, CURLOPT_CUSTOMREQUEST, "DELETE");
-
-  /* send all data to this function  */
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, recv_memory_callback);
-
-  /* we pass our 'chunk' struct to the callback function */
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
-
-  /* some servers don't like requests that are made without a user-agent
-     field, so we provide one */
-  curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "pillowtalk-agent/0.1");
-
-  /* get it! */
-  curl_easy_perform(curl_handle);
-
-  /* cleanup curl stuff */
-  curl_easy_cleanup(curl_handle);
-
-  chunk.memory[chunk.size] = '\0';
-  
-  pt_response_t* res = calloc(1,sizeof(pt_response_impl_t));
-  parse_json(&chunk,res);
-
-  if(chunk.memory)
-    free(chunk.memory);
-
+  pt_response_t* res = http_operation("DELETE",server_target,NULL,0);
   return res;
 }
 
 pt_response_t* pillowtalk_put(const char* server_target, const char* data, unsigned int data_len)
 {
-  CURL *curl_handle;
-  struct memory_chunk recv_chunk;
-  recv_chunk.memory=NULL; /* we expect realloc(NULL, size) to work */
-  recv_chunk.size = 0;    /* no data at this point */
-
-  struct memory_chunk send_chunk = {0,0,0};
-
-  /* init the curl session */
-  curl_handle = curl_easy_init();
-
-  /* specify URL to get */
-  curl_easy_setopt(curl_handle, CURLOPT_URL, server_target);
-
-  printf("PUT: %s\n",server_target);
-
-  curl_easy_setopt(curl_handle, CURLOPT_UPLOAD, 1);
-
-  if (data && data_len > 0) {
-    send_chunk.memory = (char*) malloc(data_len);
-    memcpy(send_chunk.memory,data,data_len);
-    send_chunk.offset = send_chunk.memory;
-    send_chunk.size = data_len;
-    curl_easy_setopt(curl_handle, CURLOPT_READFUNCTION, send_memory_callback);
-    curl_easy_setopt(curl_handle, CURLOPT_READDATA, (void*) &send_chunk);
-  }
-
-  /* send all data to this function  */
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, recv_memory_callback);
-
-  /* we pass our 'chunk' struct to the callback function */
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&recv_chunk);
-
-  /* some servers don't like requests that are made without a user-agent
-     field, so we provide one */
-  curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "pillowtalk-agent/0.1");
-
-  /* get it! */
-  curl_easy_perform(curl_handle);
-
-  /* cleanup curl stuff */
-  curl_easy_cleanup(curl_handle);
-
-  recv_chunk.memory[recv_chunk.size] = '\0';
-  
-  pt_response_t* res = calloc(1,sizeof(pt_response_impl_t));
-  parse_json(&recv_chunk,res);
-
-  if(recv_chunk.memory)
-    free(recv_chunk.memory);
-
-  if (send_chunk.memory)
-    free(send_chunk.memory);
-
+  pt_response_t* res = http_operation("PUT",server_target,data,data_len);
   return res;
 }
 
 pt_response_t* pillowtalk_get(const char* server_target)
 {
-  CURL *curl_handle;
-  struct memory_chunk chunk;
-  chunk.memory=NULL; /* we expect realloc(NULL, size) to work */
-  chunk.size = 0;    /* no data at this point */
-
-  /* init the curl session */
-  curl_handle = curl_easy_init();
-
-  /* specify URL to get */
-  curl_easy_setopt(curl_handle, CURLOPT_URL, server_target);
-
-  printf("GET:%s\n",server_target);
-
-  /* send all data to this function  */
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, recv_memory_callback);
-
-  /* we pass our 'chunk' struct to the callback function */
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
-
-  /* some servers don't like requests that are made without a user-agent
-     field, so we provide one */
-  curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "pillowtalk-agent/0.1");
-
-  /* get it! */
-  curl_easy_perform(curl_handle);
-
-  /* cleanup curl stuff */
-  curl_easy_cleanup(curl_handle);
-
-  chunk.memory[chunk.size] = '\0';
-  printf(chunk.memory);
-  
-  pt_response_t* res = calloc(1,sizeof(pt_response_impl_t));
-  parse_json(&chunk,res);
-
-  if(chunk.memory)
-    free(chunk.memory);
-
+  pt_response_t* res = http_operation("GET",server_target,NULL,0);
   return res;
 }
 
@@ -302,6 +178,86 @@ const char* pillowtalk_string_get(pt_node_t* string)
 }
 
 /* Static Implementation */
+
+/*
+ * This method wraps basic curl functionality
+ */
+static pt_response_t* http_operation(const char* http_method, const char* server_target, const char* data, unsigned data_len)
+{
+  CURL *curl_handle;
+  CURLcode ret;
+  struct memory_chunk recv_chunk;
+  recv_chunk.memory=NULL; /* we expect realloc(NULL, size) to work */
+  recv_chunk.size = 0;    /* no data at this point */
+
+  struct memory_chunk send_chunk = {0,0,0};
+
+  /* init the curl session */
+  curl_handle = curl_easy_init();
+
+  /* specify URL to get */
+  curl_easy_setopt(curl_handle, CURLOPT_URL, server_target);
+
+  curl_easy_setopt(curl_handle, CURLOPT_CONNECTTIMEOUT, 10);
+
+  // Want to avoid CURL SIGNALS
+  curl_easy_setopt(curl_handle, CURLOPT_NOSIGNAL, 1);
+
+  printf("%s : %s\n",http_method,server_target);
+
+  if (!strcmp("PUT",http_method))
+    curl_easy_setopt(curl_handle, CURLOPT_UPLOAD, 1);
+  else
+    curl_easy_setopt(curl_handle, CURLOPT_CUSTOMREQUEST, http_method);
+
+  if (data && data_len > 0) {
+    send_chunk.memory = (char*) malloc(data_len);
+    memcpy(send_chunk.memory,data,data_len);
+    send_chunk.offset = send_chunk.memory;
+    send_chunk.size = data_len;
+    curl_easy_setopt(curl_handle, CURLOPT_READFUNCTION, send_memory_callback);
+    curl_easy_setopt(curl_handle, CURLOPT_READDATA, (void*) &send_chunk);
+  }
+
+  /* send all data to this function  */
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, recv_memory_callback);
+
+  /* we pass our 'chunk' struct to the callback function */
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&recv_chunk);
+
+  /* some servers don't like requests that are made without a user-agent
+     field, so we provide one */
+  curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "pillowtalk-agent/0.1");
+
+  /* get it! */
+  ret = curl_easy_perform(curl_handle);
+
+  pt_response_t* res = calloc(1,sizeof(pt_response_impl_t));
+  if ((!ret)) {
+    ret = curl_easy_getinfo(curl_handle,CURLINFO_RESPONSE_CODE, &res->response_code);
+    if (ret != CURLE_OK)
+      res->response_code = 500;
+
+    if (recv_chunk.size > 0) {
+      // Parse the JSON chunk returned
+      recv_chunk.memory[recv_chunk.size] = '\0';
+      parse_json(&recv_chunk,res);
+    }
+  } else {
+    res->response_code = 500;
+  }
+
+  if(recv_chunk.memory)
+    free(recv_chunk.memory);
+
+  if (send_chunk.memory)
+    free(send_chunk.memory);
+
+  /* cleanup curl stuff */
+  curl_easy_cleanup(curl_handle);
+  return res;
+}
+
 static void *myrealloc(void *ptr, size_t size)
 {
   /* There might be a realloc() out there that doesn't like reallocing

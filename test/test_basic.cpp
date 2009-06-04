@@ -15,6 +15,11 @@ struct InitFixture {
     pt_response_t* res; 
 
     res = pillowtalk_delete("http://localhost:5984/pillowtalk_test");
+    if (res->response_code == 500) {
+      pillowtalk_free_response(res);
+      cout << "Please ensure that couchdb is running on localhost" << endl;
+      exit(-1);
+    }
     pillowtalk_free_response(res);
 
     res = pillowtalk_put("http://localhost:5984/pillowtalk_test",NULL,0);
@@ -41,9 +46,9 @@ BOOST_GLOBAL_FIXTURE(InitFixture);
 BOOST_AUTO_TEST_CASE( test_basic )
 {
   pt_response_t* res = pillowtalk_get("http://localhost:5984/pillowtalk_test/basic");
+  BOOST_REQUIRE(res);
   BOOST_REQUIRE(res->root);
   BOOST_REQUIRE(res->root->type == PT_MAP);
-
   pt_node_t* id = pillowtalk_map_get(res->root,"_id");
   BOOST_REQUIRE(id);
   BOOST_REQUIRE(id->type == PT_STRING);
