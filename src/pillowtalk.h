@@ -21,7 +21,7 @@ typedef struct {
 
 typedef struct {
   pt_node_t* root;
-  int response_code;
+  long response_code;
 } pt_response_t;
 
 void pillowtalk_init();

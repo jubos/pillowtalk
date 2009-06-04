@@ -16,9 +16,13 @@ FileUtils.rm_f("Makefile")
 puts "== running CMake in build directory"
 FileUtils.mkdir("build")
 FileUtils.cd("build") do 
-  if (!system("cmake .."))
+  # Check for cmake's existence
+  if (!system("cmake > /dev/null"))
     puts "The \"cmake\" program is required to configure pillowtalk.  It's"
     puts "available from most ports/packaging systems and http://cmake.org"
+    exit 1
+  end
+  if (!system("cmake .."))
     exit 1
   end
 end
