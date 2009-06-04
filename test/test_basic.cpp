@@ -22,15 +22,15 @@ struct InitFixture {
     }
     pillowtalk_free_response(res);
 
-    res = pillowtalk_put("http://localhost:5984/pillowtalk_test",NULL,0);
+    res = pillowtalk_put_raw("http://localhost:5984/pillowtalk_test",NULL,0);
     pillowtalk_free_response(res);
 
     const char* basic = "{}";
-    res = pillowtalk_put("http://localhost:5984/pillowtalk_test/basic",basic,strlen(basic));
+    res = pillowtalk_put_raw("http://localhost:5984/pillowtalk_test/basic",basic,strlen(basic));
     pillowtalk_free_response(res);
 
     const char* array = "{\"a\":[1,2,3]}";
-    res = pillowtalk_put("http://localhost:5984/pillowtalk_test/array",array,strlen(array));
+    res = pillowtalk_put_raw("http://localhost:5984/pillowtalk_test/array",array,strlen(array));
     pillowtalk_free_response(res);
   }
 
@@ -70,6 +70,32 @@ BOOST_AUTO_TEST_CASE( test_array )
   unsigned int len = pillowtalk_array_len(array);
   BOOST_REQUIRE_EQUAL(len,3);
   pillowtalk_free_response(res);
+}
+
+
+BOOST_AUTO_TEST_CASE( test_updates_to_document )
+{
+  pt_node_t* new_doc = pillowtalk_map_new();
+  pt_node_t* id = pillowtalk_string_new("mynewdoc");
+  pillowtalk_map_set(new_doc,"_id",id);
+
+  pt_node_t* name = pillowtalk_string_new("jubos");
+  pillowtalk_map_set(new_doc,"name",name);
+  pillowtalk_map_set(new_doc,"updates",pillowtalk_array_new());
+
+  pt_response_t* res = pillowtalk_put("http://localhost:5984/pillowtalk_test/mynewdoc",new_doc);
+  BOOST_REQUIRE(pillowtalk_map_get(res->root,"rev") != NULL);
+  pillowtalk_free_response(res);
+  pillowtalk_free_node(new_doc);
+  for(int i=0; i < 100; i++) {
+    res = pillowtalk_get("http://localhost:5984/pillowtalk_test/mynewdoc");
+    BOOST_REQUIRE(res->response_code == 200);
+    pillowtalk_array_push_back(pillowtalk_map_get(res->root,"updates"),pillowtalk_integer_new(i));
+    pt_response_t* put_res = pillowtalk_put("http://localhost:5984/pillowtalk_test/mynewdoc",res->root);
+    BOOST_REQUIRE(put_res->response_code >= 200 && put_res->response_code < 300);
+    pillowtalk_free_response(res);
+    pillowtalk_free_response(put_res);
+  }
 }
 
 // Here we make a new set of json and make sure we get what we expect

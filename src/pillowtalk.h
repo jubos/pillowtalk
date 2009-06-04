@@ -34,7 +34,8 @@ void pillowtalk_free_response(pt_response_t* res);
 
 pt_response_t* pillowtalk_delete(const char* server_target);
 
-pt_response_t* pillowtalk_put(const char* server_target, const char* data, unsigned int data_len);
+pt_response_t* pillowtalk_put(const char* server_target, pt_node_t* document);
+pt_response_t* pillowtalk_put_raw(const char* server_target, const char* data, unsigned int data_len);
 
 /* 
  * Do an HTTP get request on the target and parse the resulting JSON into the
@@ -80,9 +81,16 @@ void pillowtalk_array_push_back(pt_node_t* array, pt_node_t* elem);
 void pillowtalk_array_push_front(pt_node_t* array, pt_node_t* elem);
 
 /*
- * This will remove elem and free it as well, so don't use elem after this
+ * This will remove elem if it exists in the array and free it as well, so
+ * don't use elem after this
  */
 void pillowtalk_array_remove(pt_node_t* array, pt_node_t* elem);
+
+
+/*
+ * Convert a pt_node_t structure into a raw json string
+ */
+char* pillowtalk_to_json(pt_node_t* root, int beautify);
 
 
 #ifdef	__cplusplus
