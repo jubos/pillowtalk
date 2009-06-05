@@ -17,7 +17,10 @@ ENDIF (NOT CMAKE_BUILD_TYPE)
 
 # Here we look for curl
 FIND_PATH(CURL_INCLUDE_DIR curl.h /usr/local/include/curl /usr/include/curl )
-FIND_LIBRARY(CURL_LIBRARY NAMES curl /usr/local/lib /usr/lib )
+FIND_LIBRARY(CURL_LIBRARY NAMES curl PATHS /usr/local/lib /usr/lib NO_DEFAULT_PATH) 
+
+MESSAGE("-- Curl Include Dir:" ${CURL_INCLUDE_DIR})
+MESSAGE("-- Curl Library:" ${CURL_LIBRARY})
 
 IF (CURL_INCLUDE_DIR AND CURL_LIBRARY)
   SET(CURL_FOUND TRUE)
@@ -27,7 +30,10 @@ ENDIF (CURL_INCLUDE_DIR AND CURL_LIBRARY)
 
 # Here we look for yajl
 FIND_PATH(YAJL_INCLUDE_DIR yajl_parse.h /usr/local/include/yajl /usr/include/yajl )
-FIND_LIBRARY(YAJL_LIBRARY NAMES yajl )
+FIND_LIBRARY(YAJL_LIBRARY NAMES yajl PATHS /usr/local/lib /usr/lib NO_DEFAULT_PATH )
+
+MESSAGE("-- yajl Include Dir:" ${YAJL_INCLUDE_DIR})
+MESSAGE("-- yajl Library:" ${YAJL_LIBRARY})
 
 IF (YAJL_INCLUDE_DIR AND YAJL_LIBRARY)
   SET(YAJL_FOUND TRUE)

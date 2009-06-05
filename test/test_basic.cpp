@@ -87,7 +87,7 @@ BOOST_AUTO_TEST_CASE( test_updates_to_document )
   BOOST_REQUIRE(pillowtalk_map_get(res->root,"rev") != NULL);
   pillowtalk_free_response(res);
   pillowtalk_free_node(new_doc);
-  for(int i=0; i < 100; i++) {
+  for(int i=0; i < 5; i++) {
     res = pillowtalk_get("http://localhost:5984/pillowtalk_test/mynewdoc");
     BOOST_REQUIRE(res->response_code == 200);
     pillowtalk_array_push_back(pillowtalk_map_get(res->root,"updates"),pillowtalk_integer_new(i));

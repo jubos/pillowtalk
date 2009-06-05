@@ -73,3 +73,7 @@ typedef struct {
   pt_container_ctx_t* stack;
 } pt_response_impl_t;
 
+typedef struct {
+  pt_array_elem_t* next;
+} pt_iterator_impl_t;
+

@@ -24,6 +24,9 @@ typedef struct {
   long response_code;
 } pt_response_t;
 
+// Opaque type for iterator
+typedef struct {} pt_iterator_t;
+
 void pillowtalk_init();
 void pillowtalk_cleanup();
 
@@ -85,6 +88,17 @@ void pillowtalk_array_push_front(pt_node_t* array, pt_node_t* elem);
  * don't use elem after this
  */
 void pillowtalk_array_remove(pt_node_t* array, pt_node_t* elem);
+
+/* 
+ * Build an iterator from an array node.  If you pass in an unsupported node it
+ * will return NULL
+ */
+pt_iterator_t* pillowtalk_array_iterator(pt_node_t* array);
+
+/*
+ * This returns the next node in the array back and NULL when complete
+ */
+pt_node_t* pillowtalk_iterator_next(pt_iterator_t* iter);
 
 
 /*

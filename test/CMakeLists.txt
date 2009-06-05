@@ -7,11 +7,13 @@ if (Boost_FOUND)
 
   add_executable(test_basic test_basic.cpp ${HDRS})
   add_executable(test_json_generator test_json_generator.cpp ${HDRS})
+  add_executable(test_iterator test_iterator.cpp ${HDRS})
 
   enable_testing()
 
   add_test(01_test_basic test_basic )
   add_test(02_test_json_generator test_json_generator)
+  add_test(03_test_iterator test_iterator)
 else (Boost_FOUND)
   message("Install Boost to do testing")
 endif (Boost_FOUND)

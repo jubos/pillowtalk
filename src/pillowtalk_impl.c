@@ -194,6 +194,30 @@ void pillowtalk_array_push_back(pt_node_t* array, pt_node_t* node)
   }
 }
 
+pt_iterator_t* pillowtalk_array_iterator(pt_node_t* array) 
+{
+  if (array->type == PT_ARRAY) {
+    pt_array_t* real_array = (pt_array_t*) array;
+    pt_iterator_impl_t* iter = (pt_iterator_impl_t*) malloc(sizeof(pt_iterator_impl_t));
+    iter->next = TAILQ_FIRST(&real_array->head);
+    return (pt_iterator_t*) iter;
+  } else {
+    return NULL;
+  }
+}
+
+pt_node_t* pillowtalk_iterator_next(pt_iterator_t* iter)
+{
+  pt_iterator_impl_t* real_iter = (pt_iterator_impl_t*) iter;
+  if (real_iter->next) {
+    pt_node_t* ret = real_iter->next->node;
+    real_iter->next = TAILQ_NEXT(real_iter->next,entries);
+    return ret;
+  } else {
+    return NULL;
+  }
+}
+
 int pillowtalk_is_null(pt_node_t* null)
 {
   return null->type == PT_NULL;
