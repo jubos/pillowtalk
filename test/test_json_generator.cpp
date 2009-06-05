@@ -9,6 +9,13 @@
 using namespace std;
 using namespace boost::unit_test;
 
+BOOST_AUTO_TEST_CASE(test_null_json)
+{
+  char* json_str = pillowtalk_to_json(NULL,0);
+  BOOST_REQUIRE_EQUAL(json_str,"null");
+  free(json_str);
+}
+
 BOOST_AUTO_TEST_CASE(test_basic_map_generation)
 {
   pt_node_t* map = pillowtalk_map_new();

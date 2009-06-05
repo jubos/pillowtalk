@@ -25,7 +25,8 @@ typedef struct {
 } pt_response_t;
 
 // Opaque type for iterator
-typedef struct {} pt_iterator_t;
+typedef struct {
+} pt_iterator_t;
 
 void pillowtalk_init();
 void pillowtalk_cleanup();
@@ -90,15 +91,19 @@ void pillowtalk_array_push_front(pt_node_t* array, pt_node_t* elem);
 void pillowtalk_array_remove(pt_node_t* array, pt_node_t* elem);
 
 /* 
- * Build an iterator from an array node.  If you pass in an unsupported node it
- * will return NULL
+ * Build an iterator from an array/map node.  If you pass in an unsupported
+ * node it will return NULL
  */
-pt_iterator_t* pillowtalk_array_iterator(pt_node_t* array);
+pt_iterator_t* pillowtalk_iterator(pt_node_t* node);
 
 /*
- * This returns the next node in the array back and NULL when complete
+ * This returns the next node in the iterator back and NULL when complete.
+ *
+ * The key char** is also set to the key of a key value pair if you are
+ * iterating through a map
+ *
  */
-pt_node_t* pillowtalk_iterator_next(pt_iterator_t* iter);
+pt_node_t* pillowtalk_iterator_next(pt_iterator_t* iter, const char** key);
 
 
 /*

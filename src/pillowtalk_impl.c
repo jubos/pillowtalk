@@ -131,7 +131,7 @@ pt_node_t* pillowtalk_map_get(pt_node_t* map,const char* key)
 
 unsigned int pillowtalk_array_len(pt_node_t* array)
 {
-  if (array->type == PT_ARRAY) {
+  if (array && array->type == PT_ARRAY) {
     return ((pt_array_t*) array)->len;
   } else {
     return 0;
@@ -140,7 +140,7 @@ unsigned int pillowtalk_array_len(pt_node_t* array)
 
 pt_node_t* pillowtalk_array_get(pt_node_t* array, unsigned int idx)
 {
-  if (array->type == PT_ARRAY) {
+  if (array && array->type == PT_ARRAY) {
     pt_array_t* real_array = (pt_array_t*) array;
     int index = 0;
     pt_array_elem_t* cur = NULL;
@@ -156,7 +156,7 @@ pt_node_t* pillowtalk_array_get(pt_node_t* array, unsigned int idx)
 /* Pass in the pointer to the elem and remove it if it exists */
 void pillowtalk_array_remove(pt_node_t* array, pt_node_t* node)
 {
-  if (array->type == PT_ARRAY) {
+  if (array && array->type == PT_ARRAY) {
     pt_array_t* real_array = (pt_array_t*) array;
     pt_array_elem_t* cur = NULL;
     pt_array_elem_t* tmp = NULL;
@@ -174,7 +174,7 @@ void pillowtalk_array_remove(pt_node_t* array, pt_node_t* node)
 
 void pillowtalk_array_push_front(pt_node_t* array, pt_node_t* node)
 {
-  if (array->type == PT_ARRAY) {
+  if (array && array->type == PT_ARRAY) {
     pt_array_t* real_array = (pt_array_t*) array;
     pt_array_elem_t* elem = (pt_array_elem_t*) malloc(sizeof(pt_array_elem_t));
     elem->node = node;
@@ -185,7 +185,7 @@ void pillowtalk_array_push_front(pt_node_t* array, pt_node_t* node)
 
 void pillowtalk_array_push_back(pt_node_t* array, pt_node_t* node)
 {
-  if (array->type == PT_ARRAY) {
+  if (array && array->type == PT_ARRAY) {
     pt_array_t* real_array = (pt_array_t*) array;
     pt_array_elem_t* elem = (pt_array_elem_t*) malloc(sizeof(pt_array_elem_t));
     elem->node = node;
@@ -194,38 +194,59 @@ void pillowtalk_array_push_back(pt_node_t* array, pt_node_t* node)
   }
 }
 
-pt_iterator_t* pillowtalk_array_iterator(pt_node_t* array) 
+pt_iterator_t* pillowtalk_iterator(pt_node_t* node) 
 {
-  if (array->type == PT_ARRAY) {
-    pt_array_t* real_array = (pt_array_t*) array;
-    pt_iterator_impl_t* iter = (pt_iterator_impl_t*) malloc(sizeof(pt_iterator_impl_t));
-    iter->next = TAILQ_FIRST(&real_array->head);
-    return (pt_iterator_t*) iter;
-  } else {
-    return NULL;
+  if (node) {
+    if (node->type == PT_ARRAY) {
+      pt_array_t* real_array = (pt_array_t*) node;
+      pt_iterator_impl_t* iter = (pt_iterator_impl_t*) calloc(1,sizeof(pt_iterator_impl_t));
+      iter->type = PT_ARRAY_ITERATOR;
+      iter->next_array_elem = TAILQ_FIRST(&real_array->head);
+      return (pt_iterator_t*) iter;
+    } else if (node->type == PT_MAP) {
+      pt_map_t* real_map = (pt_map_t*) node;
+      pt_iterator_impl_t* iter = (pt_iterator_impl_t*) calloc(1,sizeof(pt_iterator_impl_t));
+      iter->type = PT_MAP_ITERATOR;
+      iter->next_map_pair = real_map->key_values;
+      return (pt_iterator_t*) iter;
+    }
   }
+  return NULL;
 }
 
-pt_node_t* pillowtalk_iterator_next(pt_iterator_t* iter)
+pt_node_t* pillowtalk_iterator_next(pt_iterator_t* iter, const char** key)
 {
-  pt_iterator_impl_t* real_iter = (pt_iterator_impl_t*) iter;
-  if (real_iter->next) {
-    pt_node_t* ret = real_iter->next->node;
-    real_iter->next = TAILQ_NEXT(real_iter->next,entries);
-    return ret;
-  } else {
-    return NULL;
+  if (iter) {
+    pt_iterator_impl_t* real_iter = (pt_iterator_impl_t*) iter;
+    if (real_iter->type == PT_MAP_ITERATOR) {
+      pt_key_value_t* kv = real_iter->next_map_pair;
+      if (kv) {
+        pt_node_t* ret = kv->value;
+        if (key)
+          *key = kv->key;
+        real_iter->next_map_pair = kv->hh.next;
+        return ret;
+      }
+    } else if (real_iter->type == PT_ARRAY_ITERATOR) {
+      pt_array_elem_t* elem = real_iter->next_array_elem;
+      if (elem) {
+        pt_node_t* ret = elem->node;
+        real_iter->next_array_elem = TAILQ_NEXT(elem,entries);
+        return ret;
+      }
+    }
   }
+  return NULL;
 }
 
 int pillowtalk_is_null(pt_node_t* null)
 {
-  return null->type == PT_NULL;
+    return !null || null->type == PT_NULL;
 }
 
 int pillowtalk_boolean_get(pt_node_t* boolean)
 {
-  if (boolean->type == PT_BOOLEAN) {
+  if (boolean && boolean->type == PT_BOOLEAN) {
     pt_bool_value_t* bool_node = (pt_bool_value_t*) boolean;
     return bool_node->value;
   } else {
@@ -235,9 +256,9 @@ int pillowtalk_boolean_get(pt_node_t* boolean)
 
 int pillowtalk_integer_get(pt_node_t* integer)
 {
-  if (integer->type == PT_INTEGER) {
+  if (integer && integer->type == PT_INTEGER) {
     return ((pt_int_value_t*) integer)->value;
-  } else if (integer->type == PT_DOUBLE) {
+  } else if (integer && integer->type == PT_DOUBLE) {
     return (int) ((pt_double_value_t*) integer)->value;
   } else {
     return 0;
@@ -246,9 +267,9 @@ int pillowtalk_integer_get(pt_node_t* integer)
 
 double pillowtalk_double_get(pt_node_t* dbl)
 {
-  if (dbl->type == PT_DOUBLE) {
+  if (dbl && dbl->type == PT_DOUBLE) {
     return ((pt_double_value_t*) dbl)->value;
-  } else if (dbl->type == PT_INTEGER) {
+  } else if (dbl && dbl->type == PT_INTEGER) {
     return (double) ((pt_int_value_t*) dbl)->value;
   } else {
     return 0;
@@ -257,7 +278,7 @@ double pillowtalk_double_get(pt_node_t* dbl)
 
 const char* pillowtalk_string_get(pt_node_t* string)
 {
-  if (string->type == PT_STRING) {
+  if (string && string->type == PT_STRING) {
     return ((pt_str_value_t*) string)->value;
   } else {
     return NULL;
@@ -305,33 +326,37 @@ pt_node_t* pillowtalk_double_new(double dbl)
 
 void pillowtalk_map_set(pt_node_t* map, const char* key, pt_node_t* value)
 {
-  pt_map_t* real_map = (pt_map_t*) map;
-  pt_key_value_t* search_result = NULL;
-  HASH_FIND(hh,real_map->key_values,key,strlen(key),search_result);
-  if (search_result) {
-    // free the old value
-    pillowtalk_free_node(search_result->value);
-    search_result->value = value;
-  } else {
-    pt_key_value_t* new_node = (pt_key_value_t*) calloc(1,sizeof(pt_key_value_t));
-    char* new_key = strdup(key);
-    new_node->parent.type = PT_KEY_VALUE;
-    new_node->key = new_key;
-    new_node->value = value;
-    HASH_ADD_KEYPTR(hh,real_map->key_values,new_node->key,strlen(new_node->key),new_node);
+  if (map && map->type == PT_MAP) {
+    pt_map_t* real_map = (pt_map_t*) map;
+    pt_key_value_t* search_result = NULL;
+    HASH_FIND(hh,real_map->key_values,key,strlen(key),search_result);
+    if (search_result) {
+      // free the old value
+      pillowtalk_free_node(search_result->value);
+      search_result->value = value;
+    } else {
+      pt_key_value_t* new_node = (pt_key_value_t*) calloc(1,sizeof(pt_key_value_t));
+      char* new_key = strdup(key);
+      new_node->parent.type = PT_KEY_VALUE;
+      new_node->key = new_key;
+      new_node->value = value;
+      HASH_ADD_KEYPTR(hh,real_map->key_values,new_node->key,strlen(new_node->key),new_node);
+    }
   }
 }
 
 void pillowtalk_map_unset(pt_node_t* map, const char* key)
 {
-  pt_map_t* real_map = (pt_map_t*) map;
-  pt_key_value_t* search_result = NULL;
-  HASH_FIND(hh,real_map->key_values,key,strlen(key),search_result);
-  if (search_result) {
-    HASH_DEL(real_map->key_values,search_result);
-    pillowtalk_free_node(search_result->value);
-    free(search_result->key);
-    free(search_result);
+  if (map && map->type == PT_MAP) {
+    pt_map_t* real_map = (pt_map_t*) map;
+    pt_key_value_t* search_result = NULL;
+    HASH_FIND(hh,real_map->key_values,key,strlen(key),search_result);
+    if (search_result) {
+      HASH_DEL(real_map->key_values,search_result);
+      pillowtalk_free_node(search_result->value);
+      free(search_result->key);
+      free(search_result);
+    }
   }
 }
 
@@ -351,24 +376,12 @@ pt_node_t* pillowtalk_array_new()
   return new_node;
 }
 
-pt_node_t* pillowtalk_array_push(pt_node_t* ary, pt_node_t* node)
-{
-  pt_node_t* new_node = (pt_node_t*) calloc(1,sizeof(pt_array_t));
-  new_node->type = PT_ARRAY;
-  return new_node;
-}
-
 char* pillowtalk_to_json(pt_node_t* root, int beautify)
 {
   yajl_gen_config conf = { beautify,"  "};
   yajl_gen g = yajl_gen_alloc(&conf, NULL);
 
   generate_node_json(root,g);
-  if (root->type == PT_ARRAY) {
-    generate_array_json((pt_array_t*) root,g);
-  } else if (root->type == PT_MAP) {
-    generate_map_json((pt_map_t*) root,g);
-  }
 
   const unsigned char * gen_buf = NULL;
   char* json = NULL;
@@ -731,36 +744,40 @@ static void generate_array_json(pt_array_t* array, yajl_gen g)
 
 static void generate_node_json(pt_node_t* node, yajl_gen g)
 {
-  switch(node->type) {
-    case PT_ARRAY:
-      generate_array_json((pt_array_t*) node,g);
-      break;
+  if (node) {
+    switch(node->type) {
+      case PT_ARRAY:
+        generate_array_json((pt_array_t*) node,g);
+        break;
 
-    case PT_MAP:
-      generate_map_json((pt_map_t*) node,g);
-      break;
+      case PT_MAP:
+        generate_map_json((pt_map_t*) node,g);
+        break;
 
-    case PT_NULL:
-      yajl_gen_null(g);
-      break;
+      case PT_NULL:
+        yajl_gen_null(g);
+        break;
 
-    case PT_BOOLEAN:
-      yajl_gen_bool(g,((pt_bool_value_t*) node)->value);
-      break;
+      case PT_BOOLEAN:
+        yajl_gen_bool(g,((pt_bool_value_t*) node)->value);
+        break;
 
-    case PT_INTEGER:
-      yajl_gen_integer(g,((pt_int_value_t*) node)->value);
-      break;
+      case PT_INTEGER:
+        yajl_gen_integer(g,((pt_int_value_t*) node)->value);
+        break;
 
-    case PT_DOUBLE:
-      yajl_gen_double(g,((pt_double_value_t*) node)->value);
-      break;
+      case PT_DOUBLE:
+        yajl_gen_double(g,((pt_double_value_t*) node)->value);
+        break;
 
-    case PT_STRING:
-      yajl_gen_string(g,(const unsigned char*) ((pt_str_value_t*) node)->value, strlen(((pt_str_value_t*) node)->value));
-      break;
+      case PT_STRING:
+        yajl_gen_string(g,(const unsigned char*) ((pt_str_value_t*) node)->value, strlen(((pt_str_value_t*) node)->value));
+        break;
 
-    case PT_KEY_VALUE:
-      break;
+      case PT_KEY_VALUE:
+        break;
+    }
+  } else {
+    yajl_gen_null(g);
   }
 }

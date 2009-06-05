@@ -7,6 +7,8 @@
 
 struct pt_map_t; 
 
+typedef enum {PT_ARRAY_ITERATOR, PT_MAP_ITERATOR} pt_iterator_type;
+
 typedef struct {
   pt_node_t parent;
   char* key;
@@ -74,6 +76,8 @@ typedef struct {
 } pt_response_impl_t;
 
 typedef struct {
-  pt_array_elem_t* next;
+  pt_iterator_type type;
+  pt_array_elem_t* next_array_elem;
+  pt_key_value_t* next_map_pair;
 } pt_iterator_impl_t;
 
