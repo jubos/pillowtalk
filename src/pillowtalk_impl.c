@@ -76,6 +76,12 @@ void pillowtalk_free_response(pt_response_t* response)
     if (response->root) {
       pillowtalk_free_node(response->root);
     }
+    pt_response_impl_t* real_res = (pt_response_impl_t*) response;
+    while(real_res->stack) {
+      pt_container_ctx_t* old_head = real_res->stack;
+      LL_DELETE(real_res->stack,old_head);
+      free(old_head);
+    }
     free(response);
   }
 }
@@ -397,6 +403,21 @@ char* pillowtalk_to_json(pt_node_t* root, int beautify)
   return json;
 }
 
+pt_node_t* pillowtalk_from_json(const char* json)
+{
+  struct memory_chunk chunk;
+
+  pt_response_t* res = calloc(1,sizeof(pt_response_impl_t));
+
+  chunk.memory = (char*) json;
+  chunk.size = strlen(json);
+  parse_json(&chunk,res);
+  pt_node_t* parsed = res->root;
+  res->root = NULL;
+  pillowtalk_free_response(res);
+  return parsed;
+}
+
 /* Static Implementation */
 
 /*
@@ -605,9 +626,11 @@ static int json_end_map(void* response)
 {
   pt_response_impl_t* res = (pt_response_impl_t*) response;
   assert(res->stack->container->type == PT_MAP);
-  pt_container_ctx_t* old_head = res->stack;
-  LL_DELETE(res->stack,old_head);
-  free(old_head);
+  if (res->stack) {
+    pt_container_ctx_t* old_head = res->stack;
+    LL_DELETE(res->stack,old_head);
+    free(old_head);
+  }
   return 1;
 }
 
@@ -698,25 +721,27 @@ static void free_array_node(pt_array_t* array)
 /* Recursive Free Function.  Watch the fireworks! */
 void pillowtalk_free_node(pt_node_t* node)
 {
-  switch(node->type) {
-    case PT_MAP:
-      {
-        free_map_node((pt_map_t*) node);
-      }
-      break;
-    case PT_ARRAY:
-      {
-        free_array_node((pt_array_t*) node);
-      }
-      break;
-    case PT_STRING:
-      free(((pt_str_value_t*) node)->value);
-      break;
-    default:
-      break;
-    // the basic value types will get handled in the free(node) below
+  if (node) {
+    switch(node->type) {
+      case PT_MAP:
+        {
+          free_map_node((pt_map_t*) node);
+        }
+        break;
+      case PT_ARRAY:
+        {
+          free_array_node((pt_array_t*) node);
+        }
+        break;
+      case PT_STRING:
+        free(((pt_str_value_t*) node)->value);
+        break;
+      default:
+        break;
+        // the basic value types will get handled in the free(node) below
+    }
+    free(node);
   }
-  free(node);
 }
 
 static void generate_map_json(pt_map_t* map, yajl_gen g)

@@ -111,6 +111,11 @@ pt_node_t* pillowtalk_iterator_next(pt_iterator_t* iter, const char** key);
  */
 char* pillowtalk_to_json(pt_node_t* root, int beautify);
 
+/* 
+ * Take a raw json string and turn it into a pillowtalk structure
+ */
+pt_node_t* pillowtalk_from_json(const char* json);
+
 
 #ifdef	__cplusplus
 }
