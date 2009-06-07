@@ -426,7 +426,7 @@ pt_node_t* pillowtalk_from_json(const char* json)
 
 int pillowtalk_map_update(pt_node_t* root, pt_node_t* additions, int append)
 {
-  if (root->type != PT_MAP || additions->type != PT_MAP)
+  if (!root || !additions || root->type != PT_MAP || additions->type != PT_MAP)
     return 1;
 
   //pt_map_t* root_map = (pt_map_t*) root;

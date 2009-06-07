@@ -37,6 +37,14 @@ BOOST_AUTO_TEST_CASE(test_null_json)
   free(json_str);
 }
 
+BOOST_AUTO_TEST_CASE(test_null_map_update)
+{
+  pt_node_t* json = pillowtalk_from_json("{}");
+  int ret_code = pillowtalk_map_update(NULL,json,0);
+  BOOST_REQUIRE_EQUAL(ret_code,1);
+  pillowtalk_free_node(json);
+}
+
 BOOST_AUTO_TEST_CASE(test_basic_map_generation)
 {
   pt_node_t* map = pillowtalk_map_new();
