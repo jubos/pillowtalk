@@ -1,0 +1,16 @@
+{
+  "Star Wars" : {
+    "movies" : {
+      "Star Wars Episode IV": {
+        "characters" : ["Luke Skywalker","Obi Wan Kenobi","Han Solo"],
+        "year" : 1977
+      },
+
+      "Star Wars Episode V": {
+        "characters" : ["Luke Skywalker","Darth Vader","Yoda"],
+        "year" : 1980
+      }
+    },
+    "books" : ["Lots of them"]
+  }
+}

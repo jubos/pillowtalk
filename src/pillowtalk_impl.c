@@ -121,7 +121,7 @@ pt_response_t* pillowtalk_get(const char* server_target)
 
 pt_node_t* pillowtalk_map_get(pt_node_t* map,const char* key)
 {
-  if (map->type == PT_MAP) {
+  if (map->type == PT_MAP && key) {
     pt_map_t* real_map = (pt_map_t*) map;
     pt_key_value_t* search_result = NULL;
     HASH_FIND(hh,real_map->key_values,key,strlen(key),search_result);
@@ -332,7 +332,7 @@ pt_node_t* pillowtalk_double_new(double dbl)
 
 void pillowtalk_map_set(pt_node_t* map, const char* key, pt_node_t* value)
 {
-  if (map && map->type == PT_MAP) {
+  if (map && map->type == PT_MAP && key && value) {
     pt_map_t* real_map = (pt_map_t*) map;
     pt_key_value_t* search_result = NULL;
     HASH_FIND(hh,real_map->key_values,key,strlen(key),search_result);
@@ -417,6 +417,80 @@ pt_node_t* pillowtalk_from_json(const char* json)
   pillowtalk_free_response(res);
   return parsed;
 }
+
+int pillowtalk_map_update(pt_node_t* root, pt_node_t* additions, int append)
+{
+  if (root->type != PT_MAP || additions->type != PT_MAP)
+    return 1;
+
+  //pt_map_t* root_map = (pt_map_t*) root;
+  pt_map_t* additions_map = (pt_map_t*) additions;
+  pt_key_value_t* key_value = NULL;
+  for(key_value = additions_map->key_values; key_value != NULL; key_value = key_value->hh.next) {
+    if (key_value->value) {
+      pt_node_t* existing = pillowtalk_map_get(root,key_value->key);
+      if (!existing) {
+        pillowtalk_map_set(root,key_value->key,pillowtalk_clone(key_value->value));
+      } else {
+        if (key_value->value->type != existing->type) {
+          return 1;
+        }
+        switch(key_value->value->type) {
+          case PT_MAP:
+            pillowtalk_map_update(existing,key_value->value,append);
+            break;
+          default:
+            pillowtalk_map_set(root,key_value->key,pillowtalk_clone(key_value->value));
+            break;
+        }
+      }
+    }
+  }
+  return 0;
+}
+
+pt_node_t* pillowtalk_clone(pt_node_t* root)
+{
+  if (root) {
+    switch(root->type) {
+      case PT_MAP:
+        {
+          pt_node_t* clone = pillowtalk_map_new();
+          pt_map_t* map = (pt_map_t*) root;
+          pt_key_value_t* key_value = NULL;
+          for(key_value = map->key_values; key_value != NULL; key_value = key_value->hh.next) {
+            pillowtalk_map_set(clone,key_value->key,pillowtalk_clone(key_value->value));
+          }
+          return (pt_node_t*) clone;
+        }
+      case PT_ARRAY:
+        {
+          pt_node_t* clone = pillowtalk_array_new();
+          pt_array_t* array = (pt_array_t*) root;
+          pt_array_elem_t* elem = TAILQ_FIRST(&array->head);
+          while(elem) {
+            pillowtalk_array_push_back(clone,pillowtalk_clone(elem->node));
+            elem = TAILQ_NEXT(elem,entries);
+          }
+          return clone;
+        }
+      case PT_NULL:
+        return pillowtalk_null_new();
+      case PT_BOOLEAN:
+        return pillowtalk_bool_new(((pt_bool_value_t*) root)->value);
+      case PT_INTEGER:
+        return pillowtalk_integer_new(((pt_int_value_t*) root)->value);
+      case PT_DOUBLE:
+        return pillowtalk_double_new(((pt_double_value_t*) root)->value);
+      case PT_STRING:
+        return pillowtalk_string_new(((pt_str_value_t*) root)->value);
+      case PT_KEY_VALUE:
+        break;
+    }
+  }
+  return NULL;
+}
+
 
 /* Static Implementation */
 
@@ -691,6 +765,11 @@ static void parse_json(struct memory_chunk* chunk,pt_response_t* res)
 
   hand = yajl_alloc(&callbacks, &cfg, NULL, res);
   stat = yajl_parse(hand, (const unsigned char*) chunk->memory, chunk->size);
+  if (stat != yajl_status_ok && stat != yajl_status_insufficient_data) {
+    unsigned char * str = yajl_get_error(hand, 1, (const unsigned char*) chunk->memory, chunk->size);
+    fprintf(stderr, "%s",(const char *) str);
+    yajl_free_error(hand, str);
+  }
 
   yajl_free(hand);
 }

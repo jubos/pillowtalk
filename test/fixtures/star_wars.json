@@ -1,0 +1,9 @@
+{
+  "Star Wars" : {
+    "movies" : {
+      "Star Wars Episode IV": {
+        "characters": ["Luke Skywalker","Han Solo"]
+      }
+    }
+  }
+}

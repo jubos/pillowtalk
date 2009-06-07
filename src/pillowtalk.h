@@ -116,6 +116,41 @@ char* pillowtalk_to_json(pt_node_t* root, int beautify);
  */
 pt_node_t* pillowtalk_from_json(const char* json);
 
+/*
+ * Merge additions into an existing pt_node
+ *
+ * For example if your root looks like this
+ * {
+ *    "name" : "Curtis",
+ *    "favorite_food" : "Bread"
+ * }
+ *
+ * and your additions look like this
+ *
+ * {
+ *    "favorite_game" : "Street Fighter II"
+ * }
+ *
+ * then the resulting json in root would be
+ *
+ * {
+ *    "name" : "Curtis",
+ *    "favorite_food" : "Bread",
+ *    "favorite_game" : "Street Fighter II"
+ * }
+ *
+ * @return a nonzero error code if something cannot properly be merged.  For
+ * example, if a key in the root is an array and the additions has it as a hash
+ * then it will give up there, but it won't rollback so be careful.
+ */    
+int pillowtalk_map_update(pt_node_t* root, pt_node_t* additions,int append);
+
+/*
+ * This method is useful if you want to clone a root you are working on to make
+ * changes to it
+ */
+pt_node_t* pillowtalk_clone(pt_node_t* root);
+
 
 #ifdef	__cplusplus
 }
