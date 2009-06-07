@@ -24,22 +24,22 @@ static pt_response_t* http_operation(const char* method,const char* server_targe
 static void *myrealloc(void *ptr, size_t size);
 static size_t recv_memory_callback(void *ptr, size_t size, size_t nmemb, void *data);
 static size_t send_memory_callback(void *ptr, size_t size, size_t nmemb, void *data);
-static int json_null(void* response);
-static int json_boolean(void* response,int boolean);
-static int json_map_key(void * response, const unsigned char* str, unsigned int length);
-static int json_integer(void* response,long integer);
-static int json_double(void* response,double dbl);
-static int json_string(void* response, const unsigned char* str, unsigned int length);
-static int json_start_map(void* response);
-static int json_end_map(void* response);
-static int json_start_array(void* response);
-static int json_end_array(void* response);
+static int json_null(void* ctx);
+static int json_boolean(void* ctx,int boolean);
+static int json_map_key(void * ctx, const unsigned char* str, unsigned int length);
+static int json_integer(void* ctx,long integer);
+static int json_double(void* ctx,double dbl);
+static int json_string(void* ctx, const unsigned char* str, unsigned int length);
+static int json_start_map(void* ctx);
+static int json_end_map(void* ctx);
+static int json_start_array(void* ctx);
+static int json_end_array(void* ctx);
 static void generate_map_json(pt_map_t* map, yajl_gen g);
 static void generate_array_json(pt_array_t* map , yajl_gen g);
 static void generate_node_json(pt_node_t* node, yajl_gen g);
 static void free_map_node(pt_map_t* map);
-static void add_node_to_context_container(pt_response_impl_t* context, pt_node_t* value);
-static void parse_json(struct memory_chunk* chunk,pt_response_t*);
+static void add_node_to_context_container(pt_parser_ctx_t* context, pt_node_t* value);
+static pt_node_t* parse_json(const char* json, int json_len);
 
 /* Globals */
 static yajl_callbacks callbacks = {
@@ -76,19 +76,25 @@ void pillowtalk_free_response(pt_response_t* response)
     if (response->root) {
       pillowtalk_free_node(response->root);
     }
-    pt_response_impl_t* real_res = (pt_response_impl_t*) response;
-    while(real_res->stack) {
-      pt_container_ctx_t* old_head = real_res->stack;
-      LL_DELETE(real_res->stack,old_head);
-      free(old_head);
-    }
+    free(response->raw_json);
     free(response);
   }
+}
+
+void free_parser_ctx(pt_parser_ctx_t* parser_ctx)
+{
+  while(parser_ctx->stack) {
+    pt_container_ctx_t* old_head = parser_ctx->stack;
+    LL_DELETE(parser_ctx->stack,old_head);
+    free(old_head);
+  }
+  free(parser_ctx);
 }
 
 pt_response_t* pillowtalk_delete(const char* server_target)
 {
   pt_response_t* res = http_operation("DELETE",server_target,NULL,0);
+  res->root = parse_json(res->raw_json,res->raw_json_len);
   return res;
 }
 
@@ -102,6 +108,7 @@ pt_response_t* pillowtalk_put(const char* server_target, pt_node_t* doc)
       data_len = strlen(data);
   }
   pt_response_t* res = http_operation("PUT",server_target,data,data_len);
+  res->root = parse_json(res->raw_json,res->raw_json_len);
   if (data)
     free(data);
   return res;
@@ -110,12 +117,20 @@ pt_response_t* pillowtalk_put(const char* server_target, pt_node_t* doc)
 pt_response_t* pillowtalk_put_raw(const char* server_target, const char* data, unsigned int data_len)
 {
   pt_response_t* res = http_operation("PUT",server_target,data,data_len);
+  res->root = parse_json(res->raw_json,res->raw_json_len);
+  return res;
+}
+
+pt_response_t* pillowtalk_unparsed_get(const char* server_target)
+{
+  pt_response_t* res = http_operation("GET",server_target,NULL,0);
   return res;
 }
 
 pt_response_t* pillowtalk_get(const char* server_target)
 {
   pt_response_t* res = http_operation("GET",server_target,NULL,0);
+  res->root = parse_json(res->raw_json,res->raw_json_len);
   return res;
 }
 
@@ -405,17 +420,8 @@ char* pillowtalk_to_json(pt_node_t* root, int beautify)
 
 pt_node_t* pillowtalk_from_json(const char* json)
 {
-  struct memory_chunk chunk;
-
-  pt_response_t* res = calloc(1,sizeof(pt_response_impl_t));
-
-  chunk.memory = (char*) json;
-  chunk.size = strlen(json);
-  parse_json(&chunk,res);
-  pt_node_t* parsed = res->root;
-  res->root = NULL;
-  pillowtalk_free_response(res);
-  return parsed;
+  pt_node_t* root = parse_json(json,strlen(json));
+  return root;
 }
 
 int pillowtalk_map_update(pt_node_t* root, pt_node_t* additions, int append)
@@ -547,7 +553,7 @@ static pt_response_t* http_operation(const char* http_method, const char* server
   /* get it! */
   ret = curl_easy_perform(curl_handle);
 
-  pt_response_t* res = calloc(1,sizeof(pt_response_impl_t));
+  pt_response_t* res = calloc(1,sizeof(pt_response_t));
   if ((!ret)) {
     ret = curl_easy_getinfo(curl_handle,CURLINFO_RESPONSE_CODE, &res->response_code);
     if (ret != CURLE_OK)
@@ -556,14 +562,12 @@ static pt_response_t* http_operation(const char* http_method, const char* server
     if (recv_chunk.size > 0) {
       // Parse the JSON chunk returned
       recv_chunk.memory[recv_chunk.size] = '\0';
-      parse_json(&recv_chunk,res);
+      res->raw_json = recv_chunk.memory;
+      res->raw_json_len = recv_chunk.size;
     }
   } else {
     res->response_code = 500;
   }
-
-  if(recv_chunk.memory)
-    free(recv_chunk.memory);
 
   if (send_chunk.memory)
     free(send_chunk.memory);
@@ -615,28 +619,28 @@ static size_t send_memory_callback(void *ptr, size_t size, size_t nmemb, void *d
 }
 
 /* Yajl Callbacks */
-static int json_null(void* response)
+static int json_null(void* ctx)
 {
   pt_node_t* node = (pt_node_t*) malloc(sizeof(pt_node_t));
   node->type = PT_NULL;
-  add_node_to_context_container((pt_response_impl_t*) response,node);
+  add_node_to_context_container((pt_parser_ctx_t*) ctx,node);
   return 1;
 }
 
-static int json_boolean(void* response,int boolean)
+static int json_boolean(void* ctx,int boolean)
 {
   pt_bool_value_t * node = (pt_bool_value_t*) calloc(1,sizeof(pt_bool_value_t));
   node->parent.type = PT_BOOLEAN;
   node->value = boolean;
-  add_node_to_context_container((pt_response_impl_t*) response,(pt_node_t*)node);
+  add_node_to_context_container((pt_parser_ctx_t*) ctx,(pt_node_t*)node);
   return 1;
 }
 
-static int json_map_key(void* response, const unsigned char* str, unsigned int length)
+static int json_map_key(void* ctx, const unsigned char* str, unsigned int length)
 {
-  pt_response_impl_t* res = (pt_response_impl_t*) response;
-  assert(res->stack && res->stack->container->type == PT_MAP);
-  pt_map_t* container = (pt_map_t*) res->stack->container;
+  pt_parser_ctx_t* parser_ctx= (pt_parser_ctx_t*) ctx;
+  assert(parser_ctx->stack && parser_ctx->stack->container->type == PT_MAP);
+  pt_map_t* container = (pt_map_t*) parser_ctx->stack->container;
   pt_key_value_t* new_node = (pt_key_value_t*) calloc(1,sizeof(pt_key_value_t));
   char* new_str = (char*) malloc(length + 1);
   memcpy(new_str,str,length);
@@ -644,31 +648,31 @@ static int json_map_key(void* response, const unsigned char* str, unsigned int l
   new_node->key = new_str;
   new_node->parent.type = PT_KEY_VALUE;
   HASH_ADD_KEYPTR(hh,container->key_values,new_node->key,length,new_node);
-  res->current_node = (pt_node_t*) new_node;
+  parser_ctx->current_node = (pt_node_t*) new_node;
   return 1;
 }
 
-static int json_integer(void* response,long integer)
+static int json_integer(void* ctx,long integer)
 {
   pt_int_value_t* node = (pt_int_value_t*) calloc(1,sizeof(pt_int_value_t));
   node->parent.type = PT_INTEGER;
   node->value = integer;
 
-  add_node_to_context_container(response,(pt_node_t*) node);
+  add_node_to_context_container(ctx,(pt_node_t*) node);
   return 1;
 }
 
-static int json_double(void* response,double dbl)
+static int json_double(void* ctx,double dbl)
 {
   pt_double_value_t* node = (pt_double_value_t*) calloc(1,sizeof(pt_double_value_t));
   node->parent.type = PT_DOUBLE;
   node->value = dbl;
 
-  add_node_to_context_container(response,(pt_node_t*) node);
+  add_node_to_context_container(ctx,(pt_node_t*) node);
   return 1;
 }
 
-static int json_string(void* response, const unsigned char* str, unsigned int length)
+static int json_string(void* ctx, const unsigned char* str, unsigned int length)
 {
   char* new_str = (char*) malloc(length + 1);
   memcpy(new_str,str,length);
@@ -677,59 +681,59 @@ static int json_string(void* response, const unsigned char* str, unsigned int le
   node->parent.type = PT_STRING;
   node->value = new_str;
 
-  add_node_to_context_container(response,(pt_node_t*) node);
+  add_node_to_context_container(ctx,(pt_node_t*) node);
   return 1;
 }
 
 /* If we aren't in a key value pair then we create a new node, otherwise we are
  * the value 
  */
-static int json_start_map(void* response)
+static int json_start_map(void* ctx)
 {
-  pt_response_impl_t* res = (pt_response_impl_t*) response;
+  pt_parser_ctx_t* parser_ctx = (pt_parser_ctx_t*) ctx;
   pt_node_t* new_node = (pt_node_t*) calloc(1,sizeof(pt_map_t));
   new_node->type = PT_MAP;
-  add_node_to_context_container(res,new_node);
+  add_node_to_context_container(parser_ctx,new_node);
   pt_container_ctx_t* new_ctx = (pt_container_ctx_t*) calloc(1,sizeof(pt_container_ctx_t));
   new_ctx->container = new_node;
-  LL_PREPEND(res->stack,new_ctx);
+  LL_PREPEND(parser_ctx->stack,new_ctx);
   return 1;
 }
 
-static int json_end_map(void* response)
+static int json_end_map(void* ctx)
 {
-  pt_response_impl_t* res = (pt_response_impl_t*) response;
-  assert(res->stack->container->type == PT_MAP);
-  if (res->stack) {
-    pt_container_ctx_t* old_head = res->stack;
-    LL_DELETE(res->stack,old_head);
+  pt_parser_ctx_t* parser_ctx = (pt_parser_ctx_t*) ctx;
+  assert(parser_ctx->stack->container->type == PT_MAP);
+  if (parser_ctx->stack) {
+    pt_container_ctx_t* old_head = parser_ctx->stack;
+    LL_DELETE(parser_ctx->stack,old_head);
     free(old_head);
   }
   return 1;
 }
 
-static int json_start_array(void* response)
+static int json_start_array(void* ctx)
 {
-  pt_response_impl_t* res = (pt_response_impl_t*) response;
+  pt_parser_ctx_t* parser_ctx = (pt_parser_ctx_t*) ctx;
   pt_array_t* new_node = (pt_array_t*) calloc(1,sizeof(pt_array_t));
   TAILQ_INIT(&new_node->head);
   new_node->parent.type = PT_ARRAY;
-  add_node_to_context_container(res,(pt_node_t*) new_node);
+  add_node_to_context_container(parser_ctx,(pt_node_t*) new_node);
   pt_container_ctx_t* new_ctx = (pt_container_ctx_t*) calloc(1,sizeof(pt_container_ctx_t));
   new_ctx->container = (pt_node_t*) new_node;
-  LL_PREPEND(res->stack,new_ctx);
-  res->current_node = (pt_node_t*) new_node;
+  LL_PREPEND(parser_ctx->stack,new_ctx);
+  parser_ctx->current_node = (pt_node_t*) new_node;
   return 1;
 }
 
-static int json_end_array(void* response)
+static int json_end_array(void* ctx)
 {
-  pt_response_impl_t* res = (pt_response_impl_t*) response;
-  assert(res->stack->container->type == PT_ARRAY);
-  pt_container_ctx_t* old_head = res->stack;
-  LL_DELETE(res->stack,old_head);
+  pt_parser_ctx_t* parser_ctx = (pt_parser_ctx_t*) ctx;
+  assert(parser_ctx->stack->container->type == PT_ARRAY);
+  pt_container_ctx_t* old_head = parser_ctx->stack;
+  LL_DELETE(parser_ctx->stack,old_head);
   free(old_head);
-  res->current_node = res->stack->container;
+  parser_ctx->current_node = parser_ctx->stack->container;
   return 1;
 }
 
@@ -738,40 +742,45 @@ static int json_end_array(void* response)
  * If it is an array it appends the value to the array.
  * If it is a key value pair it adds it to the value field of that pair.
  */
-static void add_node_to_context_container(pt_response_impl_t* res, pt_node_t* new_node)
+static void add_node_to_context_container(pt_parser_ctx_t* context, pt_node_t* value)
 {
-  if (res->current_node) {
-    if (res->current_node->type == PT_ARRAY) {
-      pt_array_t* resolved = (pt_array_t*) res->current_node;
+  if (context->current_node) {
+    if (context->current_node->type == PT_ARRAY) {
+      pt_array_t* resolved = (pt_array_t*) context->current_node;
       pt_array_elem_t* elem = (pt_array_elem_t*) malloc(sizeof(pt_array_elem_t));
-      elem->node = new_node;
+      elem->node = value;
       TAILQ_INSERT_TAIL(&resolved->head,elem,entries);
       resolved->len++;
-    } else if (res->current_node->type == PT_KEY_VALUE) {
-      pt_key_value_t* resolved = (pt_key_value_t*) res->current_node;
-      resolved->value = new_node;
+    } else if (context->current_node->type == PT_KEY_VALUE) {
+      pt_key_value_t* resolved = (pt_key_value_t*) context->current_node;
+      resolved->value = value;
     }
   } else {
-    ((pt_response_t*)res)->root = new_node;
-    res->current_node = new_node;
+    context->root = value;
+    context->current_node = value;
   }
 }
 
-static void parse_json(struct memory_chunk* chunk,pt_response_t* res)
+static pt_node_t* parse_json(const char* json, int json_len)
 {
   yajl_status stat;
   yajl_handle hand;
   yajl_parser_config cfg = { 0, 1 };
 
-  hand = yajl_alloc(&callbacks, &cfg, NULL, res);
-  stat = yajl_parse(hand, (const unsigned char*) chunk->memory, chunk->size);
+  pt_parser_ctx_t* parser_ctx = (pt_parser_ctx_t*) calloc(1,sizeof(pt_parser_ctx_t));
+
+  hand = yajl_alloc(&callbacks, &cfg, NULL, parser_ctx);
+  stat = yajl_parse(hand, (const unsigned char*) json, json_len);
   if (stat != yajl_status_ok && stat != yajl_status_insufficient_data) {
-    unsigned char * str = yajl_get_error(hand, 1, (const unsigned char*) chunk->memory, chunk->size);
+    unsigned char * str = yajl_get_error(hand, 1, (const unsigned char*) json, json_len);
     fprintf(stderr, "%s",(const char *) str);
     yajl_free_error(hand, str);
   }
 
+  pt_node_t* root = parser_ctx->root;
+  free_parser_ctx(parser_ctx);
   yajl_free(hand);
+  return root;
 }
 
 static void free_map_node(pt_map_t* map)

@@ -69,11 +69,11 @@ typedef struct pt_container_ctx_t {
 
 /* Implementation Structure of pt_response_t */
 typedef struct {
-  pt_response_t core;
+  pt_node_t* root;
   pt_node_t* current_node;
   char* current_key;
   pt_container_ctx_t* stack;
-} pt_response_impl_t;
+} pt_parser_ctx_t;
 
 typedef struct {
   pt_iterator_type type;

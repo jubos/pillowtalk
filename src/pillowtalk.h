@@ -22,6 +22,8 @@ typedef struct {
 typedef struct {
   pt_node_t* root;
   long response_code;
+  char* raw_json;
+  int raw_json_len;
 } pt_response_t;
 
 // Opaque type for iterator
@@ -46,6 +48,13 @@ pt_response_t* pillowtalk_put_raw(const char* server_target, const char* data, u
  * pt_response object
  */
 pt_response_t* pillowtalk_get(const char* server_target);
+
+
+/*
+ * This will just do a get against the server target and not try to parse it at all.
+ * It is useful for doing your own parsing with the resultant JSON 
+ */
+pt_response_t* pillowtalk_unparsed_get(const char* server_target);
 
 /***** Node Related Functions ******/
 
