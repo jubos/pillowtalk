@@ -136,7 +136,7 @@ pt_response_t* pillowtalk_get(const char* server_target)
 
 pt_node_t* pillowtalk_map_get(pt_node_t* map,const char* key)
 {
-  if (map->type == PT_MAP && key) {
+  if (map && map->type == PT_MAP && key) {
     pt_map_t* real_map = (pt_map_t*) map;
     pt_key_value_t* search_result = NULL;
     HASH_FIND(hh,real_map->key_values,key,strlen(key),search_result);
