@@ -3,7 +3,7 @@
 #include "utlist.h"
 #include "bsd_queue.h"
 
-/* Here we have subclasses of pt_node */
+/* Here we have "subclasses" of pt_node */
 
 struct pt_map_t; 
 
