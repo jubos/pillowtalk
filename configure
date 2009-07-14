@@ -6,14 +6,30 @@
 # Copyright 2007-2009, Lloyd Hilaiel.
 # 
 require 'fileutils'
+require 'optparse'
 
 prefix = "/usr/local"
 options = {}
 
-puts "== removing old build files"
+OptionParser.new do |opts|
+  opts.banner = "Usage: configure [options]"
+  opts.on("-d","--debug", "Configure with debug options enabled") do |d|
+    options[:debug] = d
+  end
+end.parse!
+
+additional_cmake_options = ""
+
+if options[:debug]
+  puts "== Generating Debug Configuration"
+  additional_cmake_options = "-D CMAKE_BUILD_TYPE=Debug"
+end
+
+
+puts "== Removing Old Build Files"
 FileUtils.rm_rf("build")
 FileUtils.rm_f("Makefile")
-puts "== running CMake in build directory"
+puts "== Running CMake in Build Directory"
 FileUtils.mkdir("build")
 FileUtils.cd("build") do 
   # Check for cmake's existence
@@ -22,7 +38,7 @@ FileUtils.cd("build") do
     puts "available from most ports/packaging systems and http://cmake.org"
     exit 1
   end
-  if (!system("cmake .."))
+  if (!system("cmake #{additional_cmake_options} .."))
     exit 1
   end
 end
@@ -40,7 +56,7 @@ File.open("Makefile", "w+") do |f|
   f.puts "	@cd build && make doc"
   f.puts
   f.puts "test:"
-  f.puts "	@cd build && make test"
+  f.puts "	@cd build && make && make test"
   f.puts
   f.puts "clean:"  
   f.puts "	@cd build && make clean"
@@ -49,7 +65,7 @@ File.open("Makefile", "w+") do |f|
   f.puts "	@rm -rf Makefile build"
   f.puts
   f.puts "install: all" 
-  f.puts "	@cd build && make install"
+  f.puts "	@cd build && make && make install"
   f.puts
 end
 puts "== Configuration complete"
