@@ -43,3 +43,12 @@ BOOST_AUTO_TEST_CASE( test_bad_json )
   pt_node_t* root = pt_from_json("{}}");
   pt_free_node(root);
 }
+
+BOOST_AUTO_TEST_CASE( test_simple_array )
+{
+  pt_node_t* array = pt_from_json("[\"1\"]");
+  BOOST_REQUIRE_EQUAL(pt_array_len(array),1);
+  pt_node_t* str = pt_array_get(array,0);
+  BOOST_REQUIRE_EQUAL(pt_string_get(str),"1");
+
+}

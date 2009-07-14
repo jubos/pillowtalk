@@ -730,10 +730,14 @@ static int json_end_array(void* ctx)
 {
   pt_parser_ctx_t* parser_ctx = (pt_parser_ctx_t*) ctx;
   assert(parser_ctx->stack->container->type == PT_ARRAY);
-  pt_container_ctx_t* old_head = parser_ctx->stack;
-  LL_DELETE(parser_ctx->stack,old_head);
-  free(old_head);
-  parser_ctx->current_node = parser_ctx->stack->container;
+  if (parser_ctx->stack) {
+    pt_container_ctx_t* old_head = parser_ctx->stack;
+    LL_DELETE(parser_ctx->stack,old_head);
+    free(old_head);
+    if (parser_ctx->stack) {
+      parser_ctx->current_node = parser_ctx->stack->container;
+    }
+  }
   return 1;
 }
 
