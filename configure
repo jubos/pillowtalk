@@ -8,21 +8,31 @@
 require 'fileutils'
 require 'optparse'
 
-prefix = "/usr/local"
 options = {}
 
 OptionParser.new do |opts|
   opts.banner = "Usage: configure [options]"
+  opts.on("-p", "--prefix PATH", "Set installation prefix") do |prefix|
+    options[:prefix] = prefix
+  end
   opts.on("-d","--debug", "Configure with debug options enabled") do |d|
     options[:debug] = d
   end
+  opts.on_tail("-h", "--help", "Output usage summary") do 
+    puts opts
+    exit
+  end
 end.parse!
 
-additional_cmake_options = ""
+additional_cmake_options = []
 
 if options[:debug]
   puts "== Generating Debug Configuration"
-  additional_cmake_options = "-D CMAKE_BUILD_TYPE=Debug"
+  additional_cmake_options << "-D CMAKE_BUILD_TYPE=Debug"
+end
+
+if options[:prefix]
+  additional_cmake_options << "-DCMAKE_INSTALL_PREFIX='#{options[:prefix]}'"
 end
 
 
@@ -38,7 +48,8 @@ FileUtils.cd("build") do
     puts "available from most ports/packaging systems and http://cmake.org"
     exit 1
   end
-  if (!system("cmake #{additional_cmake_options} .."))
+  puts "cmake #{additional_cmake_options.join(' ')} .."
+  if (!system("cmake #{additional_cmake_options.join(' ')} .."))
     exit 1
   end
 end
