@@ -1,7 +1,9 @@
-find_package( Boost )
+find_package( Boost COMPONENTS)
 if (Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/../src/)
   link_libraries(${Boost_LIBARIES} pillowtalk)
+
+  MESSAGE("-- Boost Include Dir:" ${Boost_INCLUDE_DIRS})
 
   set(HDRS ${CMAKE_CURRENT_SOURCE_DIR}/../src/pillowtalk.h)
 
