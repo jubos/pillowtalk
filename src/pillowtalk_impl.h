@@ -64,14 +64,13 @@ typedef struct {
 /* This is useful for a stack of containers so we can know where we are */
 typedef struct pt_container_ctx_t {
   pt_node_t* container;
+  pt_node_t* cur;
   struct pt_container_ctx_t *next;//, *prev;
 }pt_container_ctx_t;
 
 /* Implementation Structure of pt_response_t */
 typedef struct {
   pt_node_t* root;
-  pt_node_t* current_node;
-  char* current_key;
   pt_container_ctx_t* stack;
 } pt_parser_ctx_t;
 

@@ -12,9 +12,10 @@ using namespace boost::unit_test;
 static string 
 read_file(const string& filename)
 {
+  string test_files_dir = string(boost::unit_test::framework::master_test_suite().argv[1]);
   stringstream content;
   string line;
-  ifstream myfile(filename.c_str());
+  ifstream myfile((test_files_dir + "/" + filename).c_str());
   if (myfile.is_open())
   {
     while (! myfile.eof() )
@@ -81,8 +82,7 @@ BOOST_AUTO_TEST_CASE(test_basic_array_generation)
 
 BOOST_AUTO_TEST_CASE(test_clone)
 {
-  string test_files_dir = string(boost::unit_test::framework::master_test_suite().argv[1]);
-  char* star_wars = strdup(read_file(test_files_dir + "/fixtures/star_wars.json").c_str());
+  char* star_wars = strdup(read_file("/fixtures/star_wars.json").c_str());
 
   pt_node_t* star_wars_pt = pt_from_json(star_wars);
   pt_node_t* clone = pt_clone(star_wars_pt);
@@ -102,15 +102,9 @@ BOOST_AUTO_TEST_CASE(test_clone)
 
 BOOST_AUTO_TEST_CASE(update_map)
 {
-  size_t size;
-  printf("%d\n",boost::unit_test::framework::master_test_suite().argc);
-  printf("%s\n",boost::unit_test::framework::master_test_suite().argv[0]);
-  printf("%s\n",boost::unit_test::framework::master_test_suite().argv[1]);
-
-  string test_files_dir = string(boost::unit_test::framework::master_test_suite().argv[1]);
-  char* star_wars = strdup(read_file(test_files_dir + "/fixtures/star_wars.json").c_str());
-  char* star_wars_additions = strdup(read_file(test_files_dir + "/fixtures/star_wars_append.json").c_str());
-  char* star_wars_merged = strdup(read_file(test_files_dir + "/fixtures/star_wars_merged.json").c_str());
+  char* star_wars = strdup(read_file("/fixtures/star_wars.json").c_str());
+  char* star_wars_additions = strdup(read_file("/fixtures/star_wars_append.json").c_str());
+  char* star_wars_merged = strdup(read_file("/fixtures/star_wars_merged.json").c_str());
 
   pt_node_t* star_wars_pt = pt_from_json(star_wars);
   pt_node_t* star_wars_additions_pt = pt_from_json(star_wars_additions);

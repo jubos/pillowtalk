@@ -648,7 +648,7 @@ static int json_map_key(void* ctx, const unsigned char* str, unsigned int length
   new_node->key = new_str;
   new_node->parent.type = PT_KEY_VALUE;
   HASH_ADD_KEYPTR(hh,container->key_values,new_node->key,length,new_node);
-  parser_ctx->current_node = (pt_node_t*) new_node;
+  parser_ctx->stack->cur = (pt_node_t*) new_node;
   return 1;
 }
 
@@ -680,7 +680,6 @@ static int json_string(void* ctx, const unsigned char* str, unsigned int length)
   pt_str_value_t* node = (pt_str_value_t*) calloc(1,sizeof(pt_str_value_t));
   node->parent.type = PT_STRING;
   node->value = new_str;
-
   add_node_to_context_container(ctx,(pt_node_t*) node);
   return 1;
 }
@@ -721,8 +720,8 @@ static int json_start_array(void* ctx)
   add_node_to_context_container(parser_ctx,(pt_node_t*) new_node);
   pt_container_ctx_t* new_ctx = (pt_container_ctx_t*) calloc(1,sizeof(pt_container_ctx_t));
   new_ctx->container = (pt_node_t*) new_node;
+  new_ctx->cur = (pt_node_t*) new_node;
   LL_PREPEND(parser_ctx->stack,new_ctx);
-  parser_ctx->current_node = (pt_node_t*) new_node;
   return 1;
 }
 
@@ -734,9 +733,6 @@ static int json_end_array(void* ctx)
     pt_container_ctx_t* old_head = parser_ctx->stack;
     LL_DELETE(parser_ctx->stack,old_head);
     free(old_head);
-    if (parser_ctx->stack) {
-      parser_ctx->current_node = parser_ctx->stack->container;
-    }
   }
   return 1;
 }
@@ -748,20 +744,22 @@ static int json_end_array(void* ctx)
  */
 static void add_node_to_context_container(pt_parser_ctx_t* context, pt_node_t* value)
 {
-  if (context->current_node) {
-    if (context->current_node->type == PT_ARRAY) {
-      pt_array_t* resolved = (pt_array_t*) context->current_node;
+  if (context->stack && context->stack->cur) {
+    pt_node_t* cur = context->stack->cur;
+    if (cur->type == PT_ARRAY) {
+      pt_array_t* resolved = (pt_array_t*) cur;
       pt_array_elem_t* elem = (pt_array_elem_t*) malloc(sizeof(pt_array_elem_t));
       elem->node = value;
       TAILQ_INSERT_TAIL(&resolved->head,elem,entries);
       resolved->len++;
-    } else if (context->current_node->type == PT_KEY_VALUE) {
-      pt_key_value_t* resolved = (pt_key_value_t*) context->current_node;
+    } else if (cur->type == PT_KEY_VALUE) {
+      pt_key_value_t* resolved = (pt_key_value_t*) cur;
       resolved->value = value;
+    } else {
+      printf("Shouldn't get here: %d:%d\n", cur->type, value->type);
     }
   } else {
     context->root = value;
-    context->current_node = value;
   }
 }
 
