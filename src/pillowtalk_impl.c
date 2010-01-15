@@ -169,6 +169,7 @@ pt_node_t* pt_array_get(pt_node_t* array, unsigned int idx)
       if (index == idx) {
         return cur->node;
       }
+      index++;
     }
   }
   return NULL;
