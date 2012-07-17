@@ -8,9 +8,17 @@
 
 #include <yajl/yajl_gen.h>
 #include <yajl/yajl_parse.h>
+#ifdef PT_HAVE_YAJL_VERSION
+  #include <yajl/yajl_version.h>
+#endif
 #include <assert.h>
 
 #include "bsd_queue.h"
+
+/* YAJL Version checking */
+#if defined(YAJL_MAJOR) && (YAJL_MAJOR > 1)
+#  define HAVE_YAJL_V2 1
+#endif
 
 /* Structs */
 struct memory_chunk {
@@ -26,10 +34,16 @@ static size_t recv_memory_callback(void *ptr, size_t size, size_t nmemb, void *d
 static size_t send_memory_callback(void *ptr, size_t size, size_t nmemb, void *data);
 static int json_null(void* ctx);
 static int json_boolean(void* ctx,int boolean);
+#ifdef HAVE_YAJL_V2
+static int json_map_key(void * ctx, const unsigned char* str, size_t length);
+static int json_string(void* ctx, const unsigned char* str, size_t length);
+static int json_integer(void* ctx,long long integer);
+#else
 static int json_map_key(void * ctx, const unsigned char* str, unsigned int length);
-static int json_integer(void* ctx,long integer);
-static int json_double(void* ctx,double dbl);
 static int json_string(void* ctx, const unsigned char* str, unsigned int length);
+static int json_integer(void* ctx,long integer);
+#endif
+static int json_double(void* ctx,double dbl);
 static int json_start_map(void* ctx);
 static int json_end_map(void* ctx);
 static int json_start_array(void* ctx);
@@ -400,14 +414,24 @@ pt_node_t* pt_array_new()
 
 char* pt_to_json(pt_node_t* root, int beautify)
 {
+#ifdef HAVE_YAJL_V2
+  yajl_gen g = yajl_gen_alloc(NULL);
+  yajl_gen_config(g, yajl_gen_beautify, beautify);
+  yajl_gen_config(g, yajl_gen_indent_string, "  ");
+#else
   yajl_gen_config conf = { beautify,"  "};
   yajl_gen g = yajl_gen_alloc(&conf, NULL);
+#endif
 
   generate_node_json(root,g);
 
   const unsigned char * gen_buf = NULL;
   char* json = NULL;
+#ifdef HAVE_YAJL_V2
+  size_t len = 0;
+#else
   unsigned int len = 0;
+#endif
 
   yajl_gen_get_buf(g, &gen_buf, &len);
 
@@ -637,7 +661,11 @@ static int json_boolean(void* ctx,int boolean)
   return 1;
 }
 
+#ifdef HAVE_YAJL_V2
+static int json_map_key(void* ctx, const unsigned char* str, size_t length)
+#else
 static int json_map_key(void* ctx, const unsigned char* str, unsigned int length)
+#endif
 {
   pt_parser_ctx_t* parser_ctx= (pt_parser_ctx_t*) ctx;
   assert(parser_ctx->stack && parser_ctx->stack->container->type == PT_MAP);
@@ -653,7 +681,11 @@ static int json_map_key(void* ctx, const unsigned char* str, unsigned int length
   return 1;
 }
 
+#ifdef HAVE_YAJL_V2
+static int json_integer(void* ctx,long long integer)
+#else
 static int json_integer(void* ctx,long integer)
+#endif
 {
   pt_int_value_t* node = (pt_int_value_t*) calloc(1,sizeof(pt_int_value_t));
   node->parent.type = PT_INTEGER;
@@ -673,7 +705,11 @@ static int json_double(void* ctx,double dbl)
   return 1;
 }
 
+#ifdef HAVE_YAJL_V2
+static int json_string(void* ctx, const unsigned char* str, size_t length)
+#else
 static int json_string(void* ctx, const unsigned char* str, unsigned int length)
+#endif
 {
   char* new_str = (char*) malloc(length + 1);
   memcpy(new_str,str,length);
@@ -768,13 +804,28 @@ static pt_node_t* parse_json(const char* json, int json_len)
 {
   yajl_status stat;
   yajl_handle hand;
+#ifndef HAVE_YAJL_V2
   yajl_parser_config cfg = { 0, 1 };
+#endif
 
   pt_parser_ctx_t* parser_ctx = (pt_parser_ctx_t*) calloc(1,sizeof(pt_parser_ctx_t));
 
+#ifdef HAVE_YAJL_V2
+  hand = yajl_alloc(&callbacks, NULL, parser_ctx);
+  // don't allow comments
+  yajl_config(hand, yajl_allow_comments, 0);
+  // DO validate strings
+  yajl_config(hand, yajl_dont_validate_strings, 0);
+#else
   hand = yajl_alloc(&callbacks, &cfg, NULL, parser_ctx);
+#endif
+
   stat = yajl_parse(hand, (const unsigned char*) json, json_len);
+#ifdef HAVE_YAJL_V2
+  if (stat != yajl_status_ok && stat != yajl_status_client_canceled) {
+#else
   if (stat != yajl_status_ok && stat != yajl_status_insufficient_data) {
+#endif
     unsigned char * str = yajl_get_error(hand, 1, (const unsigned char*) json, json_len);
     fprintf(stderr, "%s",(const char *) str);
     yajl_free_error(hand, str);
