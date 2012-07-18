@@ -522,6 +522,85 @@ pt_node_t* pt_clone(pt_node_t* root)
   return NULL;
 }
 
+void pt_printout(pt_node_t* root, const char* indent)
+{
+  const char anindent[] = " ";
+  const char* myindent = anindent;
+  char* newindent;
+  if (!root) return; 
+
+  // Set up the indentation
+  if (indent && strlen(indent) > 0) myindent = indent;
+  newindent = calloc(1, 2*strlen(myindent) + 1); 
+  memcpy(newindent, myindent, strlen(myindent));
+  memcpy(newindent+strlen(myindent), myindent, strlen(myindent));
+
+  switch(root->type) {
+    case PT_MAP:
+      {
+        pt_map_t* map = (pt_map_t*) root;
+        pt_key_value_t* key_value = NULL;
+
+        printf("%s{\n", myindent); 
+        for(key_value = map->key_values; 
+            key_value != NULL; 
+            key_value = key_value->hh.next) {
+          int atype = key_value->value->type;
+          if (atype == PT_MAP || atype == PT_ARRAY) {
+            printf("%s%s%s : \n", myindent, myindent, key_value->key); 
+            pt_printout(key_value->value, newindent);
+          } else { 
+            printf("%s%s%s : ", myindent, myindent, key_value->key); 
+            pt_printout(key_value->value, "");
+          }
+          if (key_value->hh.next != NULL) printf(",");
+          printf("\n");
+        }
+        printf("%s}", myindent); 
+        break; 
+      }
+    case PT_ARRAY:
+      {
+        pt_array_t* array = (pt_array_t*) root;
+        pt_array_elem_t* elem = TAILQ_FIRST(&array->head);
+        printf("%s[\n", myindent); 
+        while(elem) {
+          int atype = elem->node->type;
+          if (atype == PT_MAP || atype == PT_ARRAY) {
+            pt_printout(elem->node, newindent);
+          } else { 
+            printf("%s",myindent);
+            pt_printout(elem->node, "");
+          }
+
+          elem = TAILQ_NEXT(elem,entries);
+          if (elem) printf(",");
+          printf("\n");
+        }
+        printf("%s]", myindent); 
+        break; 
+      }
+    case PT_NULL:
+      printf("%sNULL", myindent); 
+      break; 
+    case PT_BOOLEAN:
+      if (((pt_bool_value_t*) root)->value) printf("%sTrue", myindent);
+      else printf("%sFalse", myindent);
+    case PT_INTEGER:
+      printf("%s%i", myindent, ((pt_int_value_t*) root)->value);
+      break; 
+    case PT_DOUBLE:
+      printf("%s%f", myindent, ((pt_double_value_t*) root)->value);
+      break; 
+    case PT_STRING:
+      printf("%s%s", myindent, ((pt_str_value_t*) root)->value);
+      break; 
+    case PT_KEY_VALUE:
+      break;
+  }
+  free(newindent);
+  
+}
 
 /* Static Implementation */
 
