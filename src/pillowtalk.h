@@ -174,8 +174,28 @@ PT_API pt_node_t* pt_clone(pt_node_t* root);
  */
 PT_API void pt_printout(pt_node_t* root, const char* indent);
 
-/*
+/**
  * The following is for implementation of the changes feed
+ *
+ * Usage is as follows:
+ *
+ * // Define callback function
+ * void callback_function(pt_node_t* anode);
+ *
+ * // Set up changes feed
+ * pt_changes_feed cf = pt_changes_feed_alloc();
+ *
+ * // Set the callback function, this function will be called back either for
+ * // each change line (in continuous mode) or for the entire read-back.  In
+ * // order to preserve thread-safety, the callback is *always* called on the
+ * // main thread. This means the function itself does not necessarily need to
+ * // be thread safe.
+ *
+ * pt_changes_feed_config(cf, pt_changes_callback_func, &callback_function);
+ *
+ * pt_changes_feed_run(cf, "http://127.0.0.1:5984", "db");
+ *
+ * pt_changes_feed_free(cf);
  */
 
 /** Handler to the changes feed. */
@@ -183,7 +203,8 @@ typedef struct pt_changes_feed_t * pt_changes_feed;
 typedef enum {
     /** Keep the changes feed open, default NO*/
     pt_changes_feed_continuous = 0x1, 
-    /** Request heartbeats from the server every N ms.  0 (default) means no heartbeats */
+    /** Request heartbeats from the server every N ms.  0 (default) means no
+     * heartbeats */
     pt_changes_feed_req_heartbeats = 0x2,
     /** set changes feed callback function */
     pt_changes_feed_callback_function = 1000,
@@ -194,7 +215,19 @@ typedef enum {
   } pt_changes_feed_option;
 
 /** Function type for performing a call back on a change line from the server
- * (in continuous mode) or the entire JSON object (in non-continuous mode). 
+ * (in continuous mode) or the entire JSON object (in non-continuous mode).
+ * This callback function should return the following to give a status: 
+ * 
+ *    0 : everything OK, processing can continue.
+ *   <0 : something was wrong, or the end of a continuous feed is requested.
+ *
+ * * NOTE *: Heartbeats are handled as pt_null nodes and can be checked using
+ * pt_is_null.  A continuous feed that runs "forever" must have heartbeats,
+ * otherwise CouchDB itself will timeout the connection.  Because this is true,
+ * one should take care that the transfer can then be ended (at the slowest)
+ * every time a heartbeat comes in.  This should be taken into consideration
+ * when a heartbeat rate is selected.  
+ *
  */
 typedef int (*pt_changes_callback_func)(pt_node_t* line_change);
 
@@ -204,8 +237,9 @@ PT_API pt_changes_feed pt_changes_feed_alloc();
 /** Set configuration options for a changes feed handle. */ 
 PT_API int pt_changes_feed_config(pt_changes_feed handle, pt_changes_feed_option opt, ...);
 
-/** Run the changes feed will start the changes feed,
-  * this will block until the changes feed ends. */
+/** Run the changes feed will start the changes feed, this will block until the
+ * changes feed ends. 
+ */
 PT_API void pt_changes_feed_run(pt_changes_feed handle,
   const char* server_name,
   const char* database); 
