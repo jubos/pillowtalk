@@ -11,6 +11,7 @@ if (Boost_FOUND)
   add_executable(test_json_generator test_json_generator.cpp ${HDRS})
   add_executable(test_iterator test_iterator.cpp ${HDRS})
   add_executable(test_parser test_parser.cpp ${HDRS})
+  add_executable(test_changes_feed test_changes_feed.cpp ${HDRS})
 
   enable_testing()
 
